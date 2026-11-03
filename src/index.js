@@ -11,6 +11,7 @@ import { settings } from "./settings.js"
 import * as sidebar from "./sidebar.js"
 import * as timeline from "./timeline.js"
 import * as usage from "./usage.js"
+import * as userMessage from "./user-message.js"
 
 const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
@@ -230,6 +231,20 @@ function setup(ctx) {
       return dispose
     })
 
+  const copyButton = userMessage.button({
+    ui: ctx.ui,
+    label: ctx.t("message.copy"),
+    copied: ctx.t("message.copied"),
+    write: (text) =>
+      ctx.system.copy(text).then(
+        () => true,
+        () => {
+          ctx.toast.show({ title: ctx.t("message.copyFailed") })
+          return false
+        },
+      ),
+  })
+
   const sync = () => {
     sidebar.shelve(shelf.value.archivedOpen)
     sidebar.layout(groups.value.enabled, working.value.inline)
@@ -243,6 +258,7 @@ function setup(ctx) {
     branch.check()
     composer.compose(options.hideAgent)
     composer.observe(labels)
+    userMessage.copy(copyButton)
     timeline.fit(options.responseLabel)
     timeline.heal()
     timeline.divide(running())
@@ -299,6 +315,7 @@ function setup(ctx) {
   ctx.add(Style, composer.css(options))
   ctx.add(Style, timeline.css(options.responseLabel))
   ctx.add(Style, usage.css)
+  ctx.add(Style, userMessage.css)
   // After the app's own rows in the slot, such as the changes summary.
   ctx.add(Slot, {
     at: "session.location.menu",
@@ -354,6 +371,7 @@ function setup(ctx) {
     branch.clean()
     composer.clean()
     timeline.clean()
+    userMessage.clean()
   }
 }
 
@@ -404,6 +422,9 @@ export default Plugin.define({
       "pr.draft": "draft",
       "pr.merged": "merged",
       "pr.closed": "closed",
+      "message.copy": "Copy message",
+      "message.copied": "Copied",
+      "message.copyFailed": "Could not copy the message",
     },
   },
   setup,
