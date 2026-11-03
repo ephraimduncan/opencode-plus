@@ -149,13 +149,16 @@ test("has no current branch on a detached HEAD", () => {
   })
 })
 
-// Catches a branch name that the shell reads as code: it must reach git as one word, as it is.
+// Catches a branch name that the shell reads as code: it must reach git as one word, as it is. A new branch keeps its
+// "-c" flag in front of its name.
 test.each([
-  ["main", "git switch main"],
-  ["feature/x-1.2_b", "git switch feature/x-1.2_b"],
-  ["fix#12", "git switch 'fix#12'"],
-  ["a;rm", "git switch 'a;rm'"],
-  ["it's", "git switch 'it'\\''s'"],
-])("branch %s switches with %s", (name, want) => {
-  expect(command(name)).toBe(want)
+  [["main"], "git switch main"],
+  [["feature/x-1.2_b"], "git switch feature/x-1.2_b"],
+  [["fix#12"], "git switch 'fix#12'"],
+  [["a;rm"], "git switch 'a;rm'"],
+  [["it's"], "git switch 'it'\\''s'"],
+  [["-c", "feat/login"], "git switch -c feat/login"],
+  [["-c", "feat#2"], "git switch -c 'feat#2'"],
+])("git switch with %j runs %s", (args, want) => {
+  expect(command(...args)).toBe(want)
 })

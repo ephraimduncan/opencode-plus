@@ -21,8 +21,9 @@ const CURRENT = "data-plus-branch-current"
 const checkmark =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"><path d="M3.53564 8.17857L6.39279 11.75L12.4642 4.25" stroke="black" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
-// The label takes the look of the reasoning dropdown's button. Every item keeps room for the check at its end, as the
-// app's radio items do, and a long list scrolls.
+// The label takes the look of the reasoning dropdown's button. The menu is as wide as its longest branch, up to the
+// width of the app's other menus, and a longer name ends in "…". Every item keeps room for the check at its end, as
+// the app's radio items do, and a long list scrolls.
 export const css = `
 [${BRANCH}] {
   position: relative;
@@ -52,8 +53,14 @@ export const css = `
   opacity: 0;
 }
 [${MENU}] {
+  width: max-content;
+  max-width: min(320px, 100vw - 32px);
   max-height: min(320px, var(--kb-popper-content-available-height, 320px));
   overflow-y: auto;
+}
+[${MENU}] [data-slot="menu-v2-item-content"] {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 [${MENU}] [data-component="menu-v2-item"]::after {
   content: "";
@@ -94,7 +101,8 @@ export function mount(render) {
   })
 }
 
-// Marks each open dropdown, and in it the branch its label shows.
+// Marks each open dropdown, and in it the branch its label shows. A name that ends in "…" gets its full text as a
+// tooltip.
 export function check() {
   document.querySelectorAll(`[${TRIGGER}] > [aria-controls]`).forEach((trigger) => {
     const menu = document.getElementById(trigger.getAttribute("aria-controls"))
@@ -104,7 +112,10 @@ export function check() {
 
     set(menu, MENU, "")
     menu.querySelectorAll('[data-component="menu-v2-item"]').forEach((item) => {
+      const text = item.querySelector('[data-slot="menu-v2-item-content"] > span')
+
       mark(item, CURRENT, item.textContent.trim() === current ? "" : undefined)
+      if (text) mark(item, "title", text.scrollWidth > text.clientWidth ? text.textContent : undefined)
     })
   })
 }
@@ -155,9 +166,12 @@ export function branches(output) {
   return { current, local, remote }
 }
 
-// The shell command that switches to branch `name`. A branch name has no spaces, but it can hold characters a shell
-// reads, so a name with more than letters, digits and . _ / - goes in single quotes.
-export const command = (name) => `git switch ${/^[\w./-]+$/.test(name) ? name : `'${name.replaceAll("'", `'\\''`)}'`}`
+// The shell command `git switch` with `args`, such as a branch name, or "-c" and the name of a branch to make.
+export const command = (...args) => ["git", "switch", ...args.map(quote)].join(" ")
+
+// A branch name has no spaces, but it can hold characters a shell reads, so an argument with more than letters, digits
+// and . _ / - goes in single quotes.
+const quote = (arg) => (/^[\w./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`)
 
 // Removes every dropdown and mark, as when the plugin stops.
 export function clean() {
