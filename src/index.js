@@ -6,6 +6,7 @@ import { archive } from "./archive.js"
 import * as branch from "./branch.js"
 import * as composer from "./composer.js"
 import { newSessionRow } from "./location-menu.js"
+import * as pr from "./pr.js"
 import { settings } from "./settings.js"
 import * as sidebar from "./sidebar.js"
 import * as timeline from "./timeline.js"
@@ -53,13 +54,20 @@ function setup(ctx) {
       draft.archivedOpen = !draft.archivedOpen
     })
 
-  // Opens a new session in the project the sidebar names `name`, the way it names projects: the project's name, else
-  // its folder's. Without a match, the app's project picker opens instead.
-  const start = async (name) => {
+  // The most recently active project that the sidebar names `name`, the way it names projects: the project's name,
+  // else its folder's.
+  const find = async (name) => {
     const projects = (await ctx.client.project.list()).filter(
       (project) => (project.name || project.canonical.split("/").pop()) === name,
     )
-    const project = projects.toSorted((a, b) => b.time.active - a.time.active)[0]
+
+    return projects.toSorted((a, b) => b.time.active - a.time.active)[0]
+  }
+
+  // Opens a new session in the project the sidebar names `name`. Without a match, the app's project picker opens
+  // instead.
+  const start = async (name) => {
+    const project = await find(name)
 
     if (!project) return ctx.layout.project(SIDECAR, ctx.t("session.new"))
     ctx.layout.draft({ server: SIDECAR, directory: project.canonical, prompt: "" })
@@ -91,6 +99,19 @@ function setup(ctx) {
       return { ok: shell.exit === 0, output: data.output }
     } finally {
       void ctx.client.shell.remove({ id: shell.id, location }).catch(() => undefined)
+    }
+  }
+
+  // The pull request of `branchName` in the project the sidebar names `name`, as GitHub's `gh` command finds it.
+  // Undefined when the branch has none, or when `gh` cannot tell. A pass follows, to show what it finds.
+  const pull = async (name, branchName) => {
+    try {
+      const project = await find(name)
+      const listed = project && (await run(project.canonical, pr.command(branchName)))
+
+      return listed?.ok ? pr.latest(listed.output) : undefined
+    } finally {
+      schedule()
     }
   }
 
@@ -213,6 +234,11 @@ function setup(ctx) {
     sidebar.shelve(shelf.value.archivedOpen)
     sidebar.layout(groups.value.enabled, working.value.inline)
     sidebar.plus(add)
+    pr.show({
+      lookup: pull,
+      open: (url) => ctx.system.openExternal(url),
+      label: ({ number, state, title }) => ctx.t("pr.label", { number, state: ctx.t(`pr.${state}`), title }),
+    })
     branch.mount(dropdown)
     branch.check()
     composer.compose(options.hideAgent)
@@ -231,8 +257,10 @@ function setup(ctx) {
 
   let frame = 0
   let retry = 0
+  let stopped = false
   const schedule = () => {
-    if (frame) return
+    // A pull request lookup can end after the plugin stops.
+    if (frame || stopped) return
     frame = requestAnimationFrame(() => {
       frame = 0
       sync()
@@ -242,6 +270,8 @@ function setup(ctx) {
   const observer = new MutationObserver(schedule)
   observer.observe(document.body, { childList: true, subtree: true })
   const labels = new MutationObserver(schedule)
+  // A pass looks up the pull requests that are due again, even when the page does not change.
+  const refresh = setInterval(schedule, MINUTE)
   // `scrollend` does not bubble, so only a capturing listener on the document sees it.
   document.addEventListener("scrollend", schedule, true)
   const unlisten = sidebar.listen(toggle)
@@ -264,6 +294,7 @@ function setup(ctx) {
   )
 
   ctx.add(Style, sidebar.css)
+  ctx.add(Style, pr.css)
   ctx.add(Style, branch.css)
   ctx.add(Style, composer.css(options))
   ctx.add(Style, timeline.css(options.responseLabel))
@@ -309,14 +340,17 @@ function setup(ctx) {
   }))
 
   return () => {
+    stopped = true
     observer.disconnect()
     labels.disconnect()
     cancelAnimationFrame(frame)
     clearTimeout(retry)
+    clearInterval(refresh)
     document.removeEventListener("scrollend", schedule, true)
     unlisten()
     unlistenUsage()
     sidebar.clean()
+    pr.clean()
     branch.clean()
     composer.clean()
     timeline.clean()
@@ -365,6 +399,11 @@ export default Plugin.define({
       "branch.name": "Branch name",
       "branch.submit": "Create",
       "branch.uncreated": "Could not create {{branch}}",
+      "pr.label": "PR #{{number}}, {{state}}: {{title}}",
+      "pr.open": "open",
+      "pr.draft": "draft",
+      "pr.merged": "merged",
+      "pr.closed": "closed",
     },
   },
   setup,

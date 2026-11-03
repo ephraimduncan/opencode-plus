@@ -171,7 +171,7 @@ export const command = (...args) => ["git", "switch", ...args.map(quote)].join("
 
 // A branch name has no spaces, but it can hold characters a shell reads, so an argument with more than letters, digits
 // and . _ / - goes in single quotes.
-const quote = (arg) => (/^[\w./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`)
+export const quote = (arg) => (/^[\w./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`)
 
 // Removes every dropdown and mark, as when the plugin stops.
 export function clean() {

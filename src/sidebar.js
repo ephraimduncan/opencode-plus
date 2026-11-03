@@ -10,7 +10,7 @@ const INBOX = '[data-slot="sidebar-inbox"]'
 const SCROLL = '[data-slot="sidebar-inbox-scroll"]'
 const WORKING = '[data-slot="sidebar-inbox-working"]'
 const SECTION = `${SCROLL} > div.pt-3`
-const ROW = '[data-slot="sidebar-inbox-item"]'
+export const ROW = '[data-slot="sidebar-inbox-item"]'
 
 const SHELF = "data-plus-shelf"
 const TOGGLE = "data-plus-toggle"
@@ -225,7 +225,7 @@ ${ROW}[${GROUP}]:not([data-state="active"]):has(> [${ADD}]:hover) {
 
 const rows = (list) => (list ? Array.from(list.children).filter((child) => child.matches(ROW)) : [])
 
-const project = (row) => row.querySelector(":scope > span:first-child > span.truncate")?.textContent?.trim()
+export const project = (row) => row.querySelector(":scope > span:first-child > span.truncate")?.textContent?.trim()
 
 const ungroup = (row) => {
   row.style.removeProperty("order")
@@ -356,29 +356,35 @@ export function plus(create) {
   })
 }
 
-// A + button for the heading of project `name`. It sits inside the group's first row, so it keeps clicks and keys
-// from reaching that row. `icon` fills in its icon.
+// A + button for the heading of project `name`. `icon` fills in its icon.
 export function button({ name, label, icon, onSelect }) {
   const element = document.createElement("div")
+
+  element.setAttribute(ADD, name)
+  element.setAttribute("role", "button")
+  element.setAttribute("aria-label", label)
+  element.setAttribute("title", label)
+  icon(element)
+  control(element, onSelect)
+
+  return element
+}
+
+// Makes `element`, which sits inside a session row, run `onSelect` when it is clicked, or pressed with Enter or Space.
+// The row is a button that opens its session, so the click and keys stop at `element`.
+export function control(element, onSelect) {
   const run = (event) => {
     event.preventDefault()
     event.stopPropagation()
     onSelect()
   }
 
-  element.setAttribute(ADD, name)
-  element.setAttribute("role", "button")
   element.setAttribute("tabindex", "0")
-  element.setAttribute("aria-label", label)
-  element.setAttribute("title", label)
-  icon(element)
   element.addEventListener("pointerdown", (event) => event.stopPropagation())
   element.addEventListener("click", run)
   element.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") run(event)
   })
-
-  return element
 }
 
 // Removes every change the sidebar functions made, as when the plugin stops.
