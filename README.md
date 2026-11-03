@@ -14,6 +14,14 @@ The plugin works with OpenCode Desktop 2.2.5.
 - After you open a finished session, the sidebar shows it dim. A finished session that you did not open stays bright.
 - The "Archived" section stays closed, at the bottom of the list. Click its heading to open it.
 
+### Pull request badge
+
+- If the branch of a session has a pull request on GitHub, the sidebar shows a badge after the branch name, like T3 Code. The badge shows the number of the pull request, for example `#12`.
+- The color and the icon of the badge show the state of the pull request: open, draft, merged, or closed.
+- If a branch has more than one pull request, the badge shows the open pull request. If no pull request is open, the badge shows the pull request with the most recent change.
+- A click on the badge opens the pull request in your browser. If you hold the pointer on the badge, the title of the pull request shows.
+- The plugin finds the pull requests with the `gh` command. The plugin does a check of each branch again after two minutes, and when a session on the branch stops its run.
+
 ### Automatic archive
 
 - The plugin archives a session 12 hours after its last run stops, if no new activity occurs.
@@ -102,6 +110,7 @@ Open the command palette and type the name of a command:
 - The sidebar, the chat input, the conversation, and the context ring have no plugin API. Thus, the plugin changes the markup of the app.
 - If a new release of OpenCode changes this markup, some changes of the plugin can stop. The rest of OpenCode continues to operate.
 - The branch dropdown operates only with folders on the computer that runs OpenCode Desktop.
+- The pull request badge operates only if the `gh` command is installed and has access to GitHub. The badge shows only pull requests from the owner of the `origin` remote.
 - Automatic archive operates only while OpenCode Desktop is open. When you open the app again, the plugin archives the due sessions in approximately one minute.
 
 ## Remove
