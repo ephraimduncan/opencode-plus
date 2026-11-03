@@ -3,13 +3,15 @@ import { Schema } from "effect"
 import { createComponent } from "solid-js"
 import { insert } from "solid-js/web"
 import { archive } from "./archive.js"
+import * as branch from "./branch.js"
 import * as composer from "./composer.js"
 import { newSessionRow } from "./location-menu.js"
 import { settings } from "./settings.js"
 import * as sidebar from "./sidebar.js"
 import * as timeline from "./timeline.js"
 
-const HOUR = 60 * 60 * 1000
+const MINUTE = 60 * 1000
+const HOUR = 60 * MINUTE
 
 // The app's command that opens a new session in the open session's folder (⌘T). App command ids can change between
 // releases; when it is gone, the project menu row falls back to the plugin API.
@@ -71,10 +73,76 @@ function setup(ctx) {
         void start(name).catch(() => ctx.toast.show({ title: ctx.t("session.failed", { project: name }) })),
     })
 
+  // Runs `command` with the user's shell in `directory`, on the app's server. Returns whether it exited with 0, and its
+  // output.
+  const run = async (directory, command) => {
+    const location = { directory }
+    let { data: shell } = await ctx.client.shell.create({ location, command, timeout: MINUTE })
+
+    try {
+      while (shell.status === "running") {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        shell = (await ctx.client.shell.get({ id: shell.id, location })).data
+      }
+
+      const { data } = await ctx.client.shell.output({ id: shell.id, location })
+
+      return { ok: shell.exit === 0, output: data.output }
+    } finally {
+      void ctx.client.shell.remove({ id: shell.id, location }).catch(() => undefined)
+    }
+  }
+
+  // Lists the branches of the folder the tray names, and switches to the one the user picks.
+  const pick = async (label) => {
+    const directory = await branch.directory(label, () => ctx.client.project.list())
+    const listed = directory && (await run(directory, branch.LIST))
+
+    if (!listed?.ok)
+      return ctx.toast.show({ variant: "error", title: ctx.t("branch.unlisted"), description: listed?.output.trim() })
+
+    const { current, options } = branch.branches(listed.output)
+    const name = await ctx.dialogs.select({
+      title: ctx.t("branch.switch"),
+      placeholder: ctx.t("branch.search"),
+      options,
+      current,
+    })
+
+    if (!name || name === current) return
+    const switched = await run(directory, branch.command(name))
+
+    if (!switched.ok)
+      return ctx.toast.show({
+        variant: "error",
+        title: ctx.t("branch.failed", { branch: name }),
+        description: switched.output.trim(),
+      })
+
+    // Read the folder's branch again, so the tray shows the new one at once.
+    const data = ctx.servers.get(SIDECAR)?.data
+    data?.location.vcs.invalidate({ directory })
+    await data?.location.vcs.sync({ directory })
+  }
+
+  let picking = false
+  const open = (label) => {
+    if (picking) return
+    picking = true
+    void pick(label)
+      .catch((error) =>
+        ctx.toast.show({ variant: "error", title: ctx.t("branch.error"), description: String(error?.message ?? error) }),
+      )
+      .finally(() => {
+        picking = false
+      })
+  }
+
   const sync = () => {
     sidebar.shelve(shelf.value.archivedOpen)
     sidebar.layout(groups.value.enabled, working.value.inline)
     sidebar.plus(add)
+    branch.enable(ctx.t("branch.switch"))
     composer.compose(options.hideAgent)
     composer.observe(labels)
     timeline.fit(options.responseLabel)
@@ -105,6 +173,7 @@ function setup(ctx) {
   // `scrollend` does not bubble, so only a capturing listener on the document sees it.
   document.addEventListener("scrollend", schedule, true)
   const unlisten = sidebar.listen(toggle)
+  const unlistenBranch = branch.listen(open)
 
   createKeyed(
     () => `${shelf.value.archivedOpen}:${groups.value.enabled}:${working.value.inline}:${running()}`,
@@ -112,6 +181,7 @@ function setup(ctx) {
   )
 
   ctx.add(Style, sidebar.css)
+  ctx.add(Style, branch.css)
   ctx.add(Style, composer.css(options))
   ctx.add(Style, timeline.css(options.responseLabel))
   // After the app's own rows in the slot, such as the changes summary.
@@ -161,7 +231,9 @@ function setup(ctx) {
     clearTimeout(retry)
     document.removeEventListener("scrollend", schedule, true)
     unlisten()
+    unlistenBranch()
     sidebar.clean()
+    branch.clean()
     composer.clean()
     timeline.clean()
   }
@@ -191,6 +263,11 @@ export default Plugin.define({
       "session.new": "New session",
       "session.newIn": "New session in {{project}}",
       "session.failed": "Could not start a session in {{project}}",
+      "branch.switch": "Switch branch",
+      "branch.search": "Search branches",
+      "branch.unlisted": "Could not list the branches",
+      "branch.failed": "Could not switch to {{branch}}",
+      "branch.error": "Could not switch the branch",
     },
   },
   setup,
