@@ -29,9 +29,9 @@ The plugin works with OpenCode Desktop 2.2.5.
 
 ### Branch on the new session page
 
-- The branch name under the chat input is a button. A click on it opens a list of the branches of the folder.
+- A click on the branch name under the chat input opens a dropdown, like the dropdown of the reasoning level. The dropdown shows the branches of the folder, with a check on the current branch.
 - The plugin runs `git switch` with the branch that you select.
-- The list also shows remote branches that have no local branch. For such a branch, `git switch` makes a local branch from the remote branch.
+- Under "Remote", the dropdown shows the remote branches that have no local branch. For such a branch, `git switch` makes a local branch from the remote branch.
 - A branch that a different worktree uses does not show, because git does not let two worktrees use one branch.
 - If `git switch` is not successful, for example because of changes to your files, the plugin shows the error from git.
 
@@ -94,7 +94,7 @@ Open the command palette and type the name of a command:
 - The GUI plugin API of OpenCode is experimental. A new release of OpenCode can change it.
 - The sidebar, the chat input, and the conversation have no plugin API. Thus, the plugin changes the markup of the app.
 - If a new release of OpenCode changes this markup, some changes of the plugin can stop. The rest of OpenCode continues to operate.
-- The branch button operates only with folders on the computer that runs OpenCode Desktop.
+- The branch dropdown operates only with folders on the computer that runs OpenCode Desktop.
 - Automatic archive operates only while OpenCode Desktop is open. When you open the app again, the plugin archives the due sessions in approximately one minute.
 
 ## Remove

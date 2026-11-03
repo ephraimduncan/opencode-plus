@@ -1,8 +1,11 @@
-import { set } from "./dom.js"
+import { chevron, mark, set } from "./dom.js"
 
 // The new session page's tray names the folder's branch under the chat input (OpenCode Desktop 2.2.5). For a project
 // folder or an existing worktree it is a plain label: the branch icon, then the name. A new worktree gets the app's own
 // branch picker instead, with another icon. The tray ends with the folder's path.
+//
+// Each label gets a dropdown like the chat input's reasoning dropdown: the app's menu, opened by a button that lies
+// unseen over the label. The label keeps showing the branch, so it follows the app when the branch changes.
 
 const TRAY = '[data-slot="new-session-composer"]'
 const PATH = '[data-slot="new-session-location-path"]'
@@ -10,59 +13,100 @@ const PATH = '[data-slot="new-session-location-path"]'
 const ICON = ["branch", "new-branch"].map((name) => `${TRAY} use[href="#opencode-v2-icon-${name}"]`).join(", ")
 
 const BRANCH = "data-plus-branch"
+const TRIGGER = "data-plus-branch-trigger"
+const MENU = "data-plus-branch-menu"
+const CURRENT = "data-plus-branch-current"
 
+// The check of the app's radio menu items.
+const checkmark =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"><path d="M3.53564 8.17857L6.39279 11.75L12.4642 4.25" stroke="black" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
+// The label takes the look of the reasoning dropdown's button. Every item keeps room for the check at its end, as the
+// app's radio items do, and a long list scrolls.
 export const css = `
 [${BRANCH}] {
+  position: relative;
   border-radius: var(--radius-sm);
 }
-[${BRANCH}]:is(:hover, :focus-visible) {
-  outline: none;
+[${BRANCH}]::after {
+  content: "";
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-inline: -2px -4px;
+  background-color: currentColor;
+  mask: url("data:image/svg+xml,${encodeURIComponent(chevron)}") center / 16px no-repeat;
+}
+[${BRANCH}]:is(:hover, :has(:focus-visible), :has([data-expanded])) {
   color: var(--color-v2-text-text-base);
   background-color: var(--color-v2-overlay-simple-overlay-hover);
+}
+[${TRIGGER}] {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+[${TRIGGER}] > button {
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+[${MENU}] {
+  max-height: min(320px, var(--kb-popper-content-available-height, 320px));
+  overflow-y: auto;
+}
+[${MENU}] [data-component="menu-v2-item"]::after {
+  content: "";
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-inline-start: auto;
+}
+[${MENU}] [${CURRENT}]::after {
+  background-color: var(--menu-v2-icon);
+  mask: url("data:image/svg+xml,${encodeURIComponent(checkmark)}") center / 14px no-repeat;
 }
 `
 
 // The shell command that lists every branch, the most recent commit first.
 export const LIST = "git branch --all --no-color --no-column --sort=-committerdate"
 
-// Makes each tray's branch label a button, described to screen readers as `description`.
-export function enable(description) {
+const dropdowns = new Map()
+
+// Gives each tray's branch label a dropdown, which `render(container, label)` puts in `container` and returns the
+// cleanup of. Ends the dropdowns of labels that left the page.
+export function mount(render) {
+  dropdowns.forEach((dispose, label) => {
+    if (label.isConnected) return
+    dispose()
+    dropdowns.delete(label)
+  })
+
   document.querySelectorAll(ICON).forEach((icon) => {
     const label = icon.closest("svg").parentElement
 
-    set(label, BRANCH, "")
-    set(label, "role", "button")
-    set(label, "tabindex", "0")
-    set(label, "aria-haspopup", "dialog")
-    set(label, "aria-description", description)
+    if (dropdowns.has(label)) return
+    const container = document.createElement("div")
+    container.setAttribute(TRIGGER, "")
+    label.setAttribute(BRANCH, "")
+    label.append(container)
+    dropdowns.set(label, render(container, label))
   })
 }
 
-// Runs `open` with the branch label that is clicked, or pressed with Enter or Space. Returns the cleanup.
-export function listen(open) {
-  const label = (event) => (event.target instanceof Element ? event.target.closest(`[${BRANCH}]`) : null)
+// Marks each open dropdown, and in it the branch its label shows.
+export function check() {
+  document.querySelectorAll(`[${TRIGGER}] > [aria-controls]`).forEach((trigger) => {
+    const menu = document.getElementById(trigger.getAttribute("aria-controls"))
 
-  const click = (event) => {
-    const element = label(event)
+    if (!menu) return
+    const current = trigger.closest(`[${BRANCH}]`).querySelector(":scope > span").textContent.trim()
 
-    if (element) open(element)
-  }
-
-  const key = (event) => {
-    const element = label(event)
-
-    if ((event.key !== "Enter" && event.key !== " ") || !element) return
-    event.preventDefault()
-    open(element)
-  }
-
-  document.addEventListener("click", click)
-  document.addEventListener("keydown", key)
-
-  return () => {
-    document.removeEventListener("click", click)
-    document.removeEventListener("keydown", key)
-  }
+    set(menu, MENU, "")
+    menu.querySelectorAll('[data-component="menu-v2-item"]').forEach((item) => {
+      mark(item, CURRENT, item.textContent.trim() === current ? "" : undefined)
+    })
+  })
 }
 
 // The folder of the label's branch: the path at the end of its tray. The app shortens a long path to its first and
@@ -78,13 +122,13 @@ export async function directory(label, projects) {
     .find((path) => path.startsWith(start) && path.endsWith(end))
 }
 
-// The current branch in the output of `LIST`, and the branches `git switch` takes, as options of the app's select
-// dialog. A remote branch with no local branch of its name comes as that name, from which `git switch` makes a local
-// branch. A branch that another worktree uses stays out: git does not switch to it.
+// The current branch in the output of `LIST`, the local branches `git switch` takes, and the remote branches with no
+// local branch of their name. From the name of such a remote branch, `git switch` makes a local branch. A branch that
+// another worktree uses stays out: git does not switch to it.
 export function branches(output) {
-  const local = new Set()
-  const remote = new Map()
-  const options = []
+  const names = new Set()
+  const local = []
+  const refs = new Map()
   let current
 
   for (const line of output.split(/\r?\n/)) {
@@ -97,29 +141,28 @@ export function branches(output) {
       const ref = name.slice("remotes/".length)
       const short = ref.slice(ref.indexOf("/") + 1)
 
-      if (!remote.has(short)) remote.set(short, ref)
+      if (!refs.has(short)) refs.set(short, ref)
       continue
     }
 
-    local.add(name)
+    names.add(name)
     if (line.startsWith("*")) current = name
-    if (!line.startsWith("+")) options.push({ title: name, value: name })
+    if (!line.startsWith("+")) local.push(name)
   }
 
-  remote.forEach((ref, name) => {
-    if (!local.has(name)) options.push({ title: name, value: name, description: ref })
-  })
+  const remote = Array.from(refs, ([name, ref]) => ({ name, ref })).filter(({ name }) => !names.has(name))
 
-  return { current, options }
+  return { current, local, remote }
 }
 
 // The shell command that switches to branch `name`. A branch name has no spaces, but it can hold characters a shell
 // reads, so a name with more than letters, digits and . _ / - goes in single quotes.
 export const command = (name) => `git switch ${/^[\w./-]+$/.test(name) ? name : `'${name.replaceAll("'", `'\\''`)}'`}`
 
-// Removes every change `enable` made, as when the plugin stops.
+// Removes every dropdown and mark, as when the plugin stops.
 export function clean() {
-  document.querySelectorAll(`[${BRANCH}]`).forEach((label) => {
-    ;[BRANCH, "role", "tabindex", "aria-haspopup", "aria-description"].forEach((name) => label.removeAttribute(name))
-  })
+  dropdowns.forEach((dispose) => dispose())
+  dropdowns.clear()
+  document.querySelectorAll(`[${TRIGGER}]`).forEach((container) => container.remove())
+  document.querySelectorAll(`[${BRANCH}]`).forEach((label) => label.removeAttribute(BRANCH))
 }
