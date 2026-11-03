@@ -36,6 +36,8 @@ The plugin works with OpenCode Desktop 2.2.5.
 
 - A click on the branch name under the chat input opens a dropdown, like the dropdown of the reasoning level. The dropdown shows the branches of the folder, with a check on the current branch.
 - The plugin runs `git switch` with the branch that you select.
+- The first item, "New branch…", asks for a name. The plugin then runs `git switch -c` with the name. The new branch starts from the current branch and keeps your changes. Spaces in the name become hyphens.
+- A long branch name ends in "…". If you hold the pointer on it, the full name shows.
 - Under "Remote", the dropdown shows the remote branches that have no local branch. For such a branch, `git switch` makes a local branch from the remote branch.
 - A branch that a different worktree uses does not show, because git does not let two worktrees use one branch.
 - If `git switch` is not successful, for example because of changes to your files, the plugin shows the error from git.

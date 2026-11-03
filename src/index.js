@@ -102,17 +102,14 @@ function setup(ctx) {
     return listed?.ok ? { directory, ...branch.branches(listed.output) } : undefined
   }
 
-  // Switches `directory` to branch `name`, then reads the folder's branch again, so the tray shows the new one at once.
-  const change = async (directory, name) => {
+  // Runs `git switch` with `args` in `directory`, then reads the folder's branch again, so the tray shows the new one
+  // at once. When git refuses, a toast titled `failed` shows its output.
+  const change = async (directory, args, failed) => {
     const fail = (description) =>
-      ctx.toast.show({
-        variant: "error",
-        title: ctx.t("branch.failed", { branch: name }),
-        description: description.trim(),
-      })
+      ctx.toast.show({ variant: "error", title: failed, description: description.trim() })
 
     try {
-      const switched = await run(directory, branch.command(name))
+      const switched = await run(directory, branch.command(...args))
 
       if (!switched.ok) return fail(switched.output)
       const data = ctx.servers.get(SIDECAR)?.data
@@ -143,17 +140,33 @@ function setup(ctx) {
           })
       }
 
-      const select = async (name) => {
-        const { directory, current } = branches()
-
-        if (name === current) return
+      const apply = async (args, failed) => {
         setBusy(true)
-        await change(directory, name)
+        await change(branches().directory, args, failed)
         setBusy(false)
         load()
       }
 
-      const item = (name, text = name) => ({ label: text, onSelect: () => void select(name) })
+      const select = (name) => {
+        if (name !== branches().current) void apply([name], ctx.t("branch.failed", { branch: name }))
+      }
+
+      // Asks for the new branch's name, then makes the branch from the current one and switches to it. Spaces in the
+      // name become hyphens, as a branch name cannot hold them.
+      const create = async () => {
+        const current = branches().current
+        const typed = await ctx.dialogs.prompt({
+          title: ctx.t("branch.create"),
+          description: current && ctx.t("branch.from", { branch: current }),
+          placeholder: ctx.t("branch.name"),
+          submit: ctx.t("branch.submit"),
+        })
+        const name = typed?.trim().replace(/\s+/g, "-")
+
+        if (name) await apply(["-c", name], ctx.t("branch.uncreated", { branch: name }))
+      }
+
+      const item = (name, text = name) => ({ label: text, onSelect: () => select(name) })
 
       const items = () => {
         const value = branches()
@@ -161,13 +174,20 @@ function setup(ctx) {
         if (value === undefined) return [{ label: ctx.t("branch.loading"), disabled: true }]
 
         if (value === null) return [{ label: ctx.t("branch.unlisted"), disabled: true }]
+        // First, so a long list that scrolls cannot hide it.
+        const top = [
+          { label: ctx.t("branch.new"), icon: "plus", onSelect: () => void create() },
+          { type: "separator" },
+        ]
         const local = value.local.map((name) => item(name))
 
-        if (value.remote.length === 0) return local
+        if (value.remote.length === 0) return [...top, ...local]
 
         const remote = value.remote.map(({ name, ref }) => item(name, ref))
 
-        return [...local, { type: "separator" }, { type: "group", label: ctx.t("branch.remote"), items: remote }]
+        const group = { type: "group", label: ctx.t("branch.remote"), items: remote }
+
+        return [...top, ...local, { type: "separator" }, group]
       }
 
       container.addEventListener("pointerenter", load)
@@ -339,6 +359,12 @@ export default Plugin.define({
       "branch.unlisted": "Could not list the branches",
       "branch.remote": "Remote",
       "branch.failed": "Could not switch to {{branch}}",
+      "branch.new": "New branch…",
+      "branch.create": "Create branch",
+      "branch.from": "The new branch starts from {{branch}}, with your changes.",
+      "branch.name": "Branch name",
+      "branch.submit": "Create",
+      "branch.uncreated": "Could not create {{branch}}",
     },
   },
   setup,
