@@ -26,6 +26,11 @@ The plugin works with OpenCode Desktop 2.2.5.
 - The agent dropdown does not show while the agent is `build`. If you select a different agent, the dropdown shows again.
 - Reasoning levels show in lowercase, for example `high` and `xhigh`.
 - The project menu above the conversation has a "New session" item.
+- If you hold the pointer on the context ring above the conversation, a card shows below the ring. The card also shows when the ring has the keyboard focus.
+- The card shows the number of tokens in the context window and the context limit of the model. It also shows the part of the limit that the session uses, in percent.
+- A bar shows the part of the context window that the session uses. Each color in the bar shows one type of token, for example "Cache read", "Input", or "Output".
+- Below the bar, the card shows the number of tokens of each type and the cost.
+- A click on the ring opens the "Context" panel of the app. Then the card stays closed until the pointer moves off the ring.
 
 ### Branch on the new session page
 
@@ -92,7 +97,7 @@ Open the command palette and type the name of a command:
 ## Limits
 
 - The GUI plugin API of OpenCode is experimental. A new release of OpenCode can change it.
-- The sidebar, the chat input, and the conversation have no plugin API. Thus, the plugin changes the markup of the app.
+- The sidebar, the chat input, the conversation, and the context ring have no plugin API. Thus, the plugin changes the markup of the app.
 - If a new release of OpenCode changes this markup, some changes of the plugin can stop. The rest of OpenCode continues to operate.
 - The branch dropdown operates only with folders on the computer that runs OpenCode Desktop.
 - Automatic archive operates only while OpenCode Desktop is open. When you open the app again, the plugin archives the due sessions in approximately one minute.
