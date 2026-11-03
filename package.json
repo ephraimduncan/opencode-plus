@@ -17,7 +17,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "vite build",
+    "bundle": "vite build",
     "test": "vitest run"
   },
   "devDependencies": {

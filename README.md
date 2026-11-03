@@ -95,8 +95,10 @@ opencode plugin remove github:ephraimduncan/opencode-plus
 ## Development
 
 1. Install the packages with `bun install`.
-2. Build the plugin with `bun run build`. The build writes `dist/gui-experimental.cjs`.
+2. Build the plugin with `bun run bundle`. The build writes `dist/gui-experimental.cjs`.
 3. Do the tests with `bun run test`.
+
+The build script has the name `bundle`, not `build`. For a GitHub install, npm prepares a package that has a `build` script, and OpenCode cannot do this preparation.
 
 To use your local copy in OpenCode Desktop, remove the GitHub install first. Then put a link to your copy in the global plugins folder:
 
