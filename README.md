@@ -31,6 +31,7 @@ The plugin works with OpenCode Desktop 2.2.5.
 ### Conversation and chat input
 
 - A "Response" divider shows above the last text of each answer from the agent, after its tool calls.
+- Each message that you send has a Copy button before its `⋯` menu. The button is the same as the Copy button below each answer from the agent.
 - The agent dropdown does not show while the agent is `build`. If you select a different agent, the dropdown shows again.
 - Reasoning levels show in lowercase, for example `high` and `xhigh`.
 - The project menu above the conversation has a "New session" item.
