@@ -1,4 +1,4 @@
-import { mark, set } from "./dom.js"
+import { chevron, mark, set } from "./dom.js"
 
 // The session sidebar has no plugin API, so this works on its markup (OpenCode Desktop 2.2.5). Rows are
 // `[data-slot="sidebar-inbox-item"]`, and each row's first line holds the project's badge, name, and time or status.
@@ -26,10 +26,6 @@ const ADD = "data-plus-add"
 // Rows that recede: finished and already seen (`ready`), and not open, hovered, focused, or archived. Unseen results
 // (`done`, `failed`) stay bright until opened.
 const DIM = `${INBOX} ${ROW}[data-status="ready"]:not([data-state="active"], :hover:not(:has([${ADD}]:hover)), :focus-visible, [${SHELF}] > *)`
-
-// The app's chevron-down icon.
-const chevron =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"><path d="M4.5 6.5L8 9.5L11.5 6.5" stroke="black" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
 // With working rows in the list, the session list and the Working section dissolve into the sidebar, which scrolls
 // instead, so `order` can place working rows among the finished ones.

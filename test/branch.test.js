@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest"
-import { branches, command, directory, enable } from "../src/branch.js"
+import { branches, check, clean, command, directory, mount } from "../src/branch.js"
 
 const icon = (name) => `<svg data-slot="icon-svg" width="16" height="16"><use href="#opencode-v2-icon-${name}"></use></svg>`
 
@@ -41,23 +41,60 @@ const project = (canonical, sandboxes) => ({
 })
 
 beforeEach(() => {
+  clean()
   document.body.innerHTML = ""
 })
 
-// Catches a label that stays plain, or a button made of the wrong branch icon: the app's own picker for a new worktree
-// and a branch icon outside the tray must stay as the app made them.
-test("makes the tray's branch label a button, and nothing else", () => {
+// Catches a dropdown on the wrong branch icon, a second dropdown on every pass over the page, and a dropdown that
+// outlives its label: the app's own picker for a new worktree and a branch icon outside the tray stay as they are.
+test("gives the tray's branch label one dropdown, and ends it with the label", () => {
   document.body.innerHTML =
     tray(label("main"), "/Users/ephraim/dev/opencode-plus") +
     tray(picker) +
     `<div class="flex items-center gap-1.5">${icon("branch")}<span>main</span></div>`
+  const rendered = []
+  const disposed = []
+  const render = (container, element) => {
+    const name = element.querySelector("span").textContent
+    rendered.push(name)
 
-  enable("Switch branch")
+    return () => disposed.push(name)
+  }
 
-  const buttons = Array.from(document.querySelectorAll('[role="button"]'))
-  expect(buttons.map((element) => element.textContent)).toEqual(["main"])
-  expect(buttons[0].getAttribute("tabindex")).toBe("0")
-  expect(buttons[0].getAttribute("aria-description")).toBe("Switch branch")
+  mount(render)
+  mount(render)
+
+  expect(rendered).toEqual(["main"])
+
+  document.body.innerHTML = ""
+  mount(render)
+
+  expect(disposed).toEqual(["main"])
+})
+
+// Catches a check on the wrong branch, such as one whose name only starts with the current branch's name.
+test("checks the label's branch in its open dropdown", () => {
+  document.body.innerHTML = tray(label("main"), "/Users/ephraim/dev/opencode-plus")
+  // The app's menu button, as Kobalte marks it while its menu is open.
+  mount((container) => {
+    container.innerHTML = `<button type="button" aria-haspopup="true" aria-expanded="true" aria-controls="menu-1" data-expanded="">Switch branch</button>`
+
+    return () => {}
+  })
+  const row = (name) =>
+    `<div role="menuitem" data-component="menu-v2-item" data-appearance="compact">` +
+    `<span data-slot="menu-v2-item-content"><span class="min-w-0 truncate">${name}</span></span></div>`
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<div id="menu-1" role="menu" data-component="menu-v2-content" data-appearance="compact">` +
+      `${row("feature/x")}${row("main-old")}${row("main")}<hr data-slot="menu-v2-separator">` +
+      `<div role="group"><span data-slot="menu-v2-group-label">Remote</span>${row("origin/new-remote")}</div></div>`,
+  )
+
+  check()
+
+  const checked = Array.from(document.querySelectorAll("[data-plus-branch-current]"), (item) => item.textContent)
+  expect(checked).toEqual(["main"])
 })
 
 // Catches git running in the wrong folder: a path the tray shows in full is used as it is, and a shortened path
@@ -98,12 +135,8 @@ const output = [
 test("lists the local branches, then the remote branches with no local branch", () => {
   expect(branches(output)).toEqual({
     current: "only-remote",
-    options: [
-      { title: "feature/x", value: "feature/x" },
-      { title: "main", value: "main" },
-      { title: "only-remote", value: "only-remote" },
-      { title: "new-remote", value: "new-remote", description: "origin/new-remote" },
-    ],
+    local: ["feature/x", "main", "only-remote"],
+    remote: [{ name: "new-remote", ref: "origin/new-remote" }],
   })
 })
 
@@ -111,7 +144,8 @@ test("lists the local branches, then the remote branches with no local branch", 
 test("has no current branch on a detached HEAD", () => {
   expect(branches("* (HEAD detached at ee5c1a4)\n  main\n")).toEqual({
     current: undefined,
-    options: [{ title: "main", value: "main" }],
+    local: ["main"],
+    remote: [],
   })
 })
 

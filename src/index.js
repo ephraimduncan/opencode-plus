@@ -1,6 +1,6 @@
 import { Command, Plugin, Slot, Store, Style, createKeyed } from "@opencode/plugin/gui"
 import { Schema } from "effect"
-import { createComponent, createRoot } from "solid-js"
+import { createComponent, createRoot, createSignal } from "solid-js"
 import { insert } from "solid-js/web"
 import { archive } from "./archive.js"
 import * as branch from "./branch.js"
@@ -94,56 +94,107 @@ function setup(ctx) {
     }
   }
 
-  // Lists the branches of the folder the tray names, and switches to the one the user picks.
-  const pick = async (label) => {
+  // The branches of the folder that `label` names, or undefined when git cannot list them there.
+  const list = async (label) => {
     const directory = await branch.directory(label, () => ctx.client.project.list())
     const listed = directory && (await run(directory, branch.LIST))
 
-    if (!listed?.ok)
-      return ctx.toast.show({ variant: "error", title: ctx.t("branch.unlisted"), description: listed?.output.trim() })
+    return listed?.ok ? { directory, ...branch.branches(listed.output) } : undefined
+  }
 
-    const { current, options } = branch.branches(listed.output)
-    const name = await ctx.dialogs.select({
-      title: ctx.t("branch.switch"),
-      placeholder: ctx.t("branch.search"),
-      options,
-      current,
-    })
-
-    if (!name || name === current) return
-    const switched = await run(directory, branch.command(name))
-
-    if (!switched.ok)
-      return ctx.toast.show({
+  // Switches `directory` to branch `name`, then reads the folder's branch again, so the tray shows the new one at once.
+  const change = async (directory, name) => {
+    const fail = (description) =>
+      ctx.toast.show({
         variant: "error",
         title: ctx.t("branch.failed", { branch: name }),
-        description: switched.output.trim(),
+        description: description.trim(),
       })
 
-    // Read the folder's branch again, so the tray shows the new one at once.
-    const data = ctx.servers.get(SIDECAR)?.data
-    data?.location.vcs.invalidate({ directory })
-    await data?.location.vcs.sync({ directory })
+    try {
+      const switched = await run(directory, branch.command(name))
+
+      if (!switched.ok) return fail(switched.output)
+      const data = ctx.servers.get(SIDECAR)?.data
+      data?.location.vcs.invalidate({ directory })
+      await data?.location.vcs.sync({ directory })
+    } catch (error) {
+      fail(String(error?.message ?? error))
+    }
   }
 
-  let picking = false
-  const open = (label) => {
-    if (picking) return
-    picking = true
-    void pick(label)
-      .catch((error) =>
-        ctx.toast.show({ variant: "error", title: ctx.t("branch.error"), description: String(error?.message ?? error) }),
+  // Puts in `container` the dropdown of the branches of the folder that `label` names, and returns its cleanup. The
+  // list loads again each time the pointer or the focus comes to the label, so it is ready when the dropdown opens.
+  const dropdown = (container, label) =>
+    createRoot((dispose) => {
+      // Undefined until the list loads, null when it cannot load.
+      const [branches, setBranches] = createSignal()
+      const [busy, setBusy] = createSignal(false)
+      let loading = false
+
+      const load = () => {
+        if (loading) return
+        loading = true
+        list(label)
+          .catch(() => undefined)
+          .then((value) => setBranches(value ?? null))
+          .finally(() => {
+            loading = false
+          })
+      }
+
+      const select = async (name) => {
+        const { directory, current } = branches()
+
+        if (name === current) return
+        setBusy(true)
+        await change(directory, name)
+        setBusy(false)
+        load()
+      }
+
+      const item = (name, text = name) => ({ label: text, onSelect: () => void select(name) })
+
+      const items = () => {
+        const value = branches()
+
+        if (value === undefined) return [{ label: ctx.t("branch.loading"), disabled: true }]
+
+        if (value === null) return [{ label: ctx.t("branch.unlisted"), disabled: true }]
+        const local = value.local.map((name) => item(name))
+
+        if (value.remote.length === 0) return local
+
+        const remote = value.remote.map(({ name, ref }) => item(name, ref))
+
+        return [...local, { type: "separator" }, { type: "group", label: ctx.t("branch.remote"), items: remote }]
+      }
+
+      container.addEventListener("pointerenter", load)
+      container.addEventListener("focusin", load)
+      insert(container, () =>
+        createComponent(ctx.ui.Menu, {
+          label: ctx.t("branch.switch"),
+          trigger: "button",
+          placement: "bottom-start",
+          get disabled() {
+            return busy()
+          },
+          get items() {
+            return items()
+          },
+        }),
       )
-      .finally(() => {
-        picking = false
-      })
-  }
+
+      return dispose
+    })
 
   const sync = () => {
     sidebar.shelve(shelf.value.archivedOpen)
     sidebar.layout(groups.value.enabled, working.value.inline)
     sidebar.plus(add)
-    branch.enable(ctx.t("branch.switch"))
+    branch.mount(dropdown)
+    branch.check()
     composer.compose(options.hideAgent)
     composer.observe(labels)
     timeline.fit(options.responseLabel)
@@ -186,7 +237,6 @@ function setup(ctx) {
       return dispose
     }),
   )
-  const unlistenBranch = branch.listen(open)
 
   createKeyed(
     () => `${shelf.value.archivedOpen}:${groups.value.enabled}:${working.value.inline}:${running()}`,
@@ -246,7 +296,6 @@ function setup(ctx) {
     document.removeEventListener("scrollend", schedule, true)
     unlisten()
     unlistenUsage()
-    unlistenBranch()
     sidebar.clean()
     branch.clean()
     composer.clean()
@@ -286,10 +335,10 @@ export default Plugin.define({
       "usage.output": "Output",
       "usage.cost": "Cost",
       "branch.switch": "Switch branch",
-      "branch.search": "Search branches",
+      "branch.loading": "Loading…",
       "branch.unlisted": "Could not list the branches",
+      "branch.remote": "Remote",
       "branch.failed": "Could not switch to {{branch}}",
-      "branch.error": "Could not switch the branch",
     },
   },
   setup,
