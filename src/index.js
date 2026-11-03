@@ -1,6 +1,6 @@
 import { Command, Plugin, Slot, Store, Style, createKeyed } from "@opencode/plugin/gui"
 import { Schema } from "effect"
-import { createComponent } from "solid-js"
+import { createComponent, createRoot } from "solid-js"
 import { insert } from "solid-js/web"
 import { archive } from "./archive.js"
 import * as branch from "./branch.js"
@@ -9,6 +9,7 @@ import { newSessionRow } from "./location-menu.js"
 import { settings } from "./settings.js"
 import * as sidebar from "./sidebar.js"
 import * as timeline from "./timeline.js"
+import * as usage from "./usage.js"
 
 const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
@@ -173,6 +174,18 @@ function setup(ctx) {
   // `scrollend` does not bubble, so only a capturing listener on the document sees it.
   document.addEventListener("scrollend", schedule, true)
   const unlisten = sidebar.listen(toggle)
+  // The usage card follows the open session while it shows.
+  const unlistenUsage = usage.listen((card) =>
+    createRoot((dispose) => {
+      insert(card, () => {
+        const session = ctx.sessions.current()
+
+        return session ? usage.render(usage.stats(session), ctx.t, ctx.locale.locale()) : []
+      })
+
+      return dispose
+    }),
+  )
   const unlistenBranch = branch.listen(open)
 
   createKeyed(
@@ -184,6 +197,7 @@ function setup(ctx) {
   ctx.add(Style, branch.css)
   ctx.add(Style, composer.css(options))
   ctx.add(Style, timeline.css(options.responseLabel))
+  ctx.add(Style, usage.css)
   // After the app's own rows in the slot, such as the changes summary.
   ctx.add(Slot, {
     at: "session.location.menu",
@@ -231,6 +245,7 @@ function setup(ctx) {
     clearTimeout(retry)
     document.removeEventListener("scrollend", schedule, true)
     unlisten()
+    unlistenUsage()
     unlistenBranch()
     sidebar.clean()
     branch.clean()
@@ -263,6 +278,13 @@ export default Plugin.define({
       "session.new": "New session",
       "session.newIn": "New session in {{project}}",
       "session.failed": "Could not start a session in {{project}}",
+      "usage.window": "Context window",
+      "usage.cacheRead": "Cache read",
+      "usage.cacheWrite": "Cache write",
+      "usage.input": "Input",
+      "usage.reasoning": "Reasoning",
+      "usage.output": "Output",
+      "usage.cost": "Cost",
       "branch.switch": "Switch branch",
       "branch.search": "Search branches",
       "branch.unlisted": "Could not list the branches",
