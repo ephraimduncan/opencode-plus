@@ -29,6 +29,10 @@ The plugin works with OpenCode Desktop 2.2.5.
 
 ## Install
 
+The `opencode` command must be version 2.2.5 or later. Earlier versions do not install a plugin that has only a desktop part. To see your version, run `opencode --version`.
+
+If your `opencode` command is older than the desktop app, use the command that the app contains. On macOS, it is `/Applications/OpenCode.app/Contents/Resources/opencode-cli`.
+
 1. Run this command:
 
    ```sh
