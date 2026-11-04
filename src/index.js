@@ -1,11 +1,14 @@
 import { Command, Plugin, Slot, Store, Style, createKeyed } from "@opencode/plugin/gui"
 import { Browser } from "@opencode/plugin/gui/browser"
 import { Schema } from "effect"
+// A window gets an inert module. Only the main process uses it.
+import { app, safeStorage, webContents } from "electron"
 import { createComponent, createRoot, createSignal } from "solid-js"
 import { insert } from "solid-js/web"
 import { archive } from "./archive.js"
 import * as branch from "./branch.js"
 import * as composer from "./composer.js"
+import * as cookies from "./cookies.js"
 import * as links from "./links.js"
 import { newSessionRow } from "./location-menu.js"
 import * as pr from "./pr.js"
@@ -392,9 +395,11 @@ function setup(ctx) {
   }
 }
 
-// The desktop app's main process: archives finished sessions.
+// The desktop app's main process: keeps the logins of the browser pane, and archives finished sessions.
 function main(ctx) {
   const { archiveAfterHours } = settings(ctx.options)
+
+  ctx.onCleanup(cookies.keep(ctx, { app, safeStorage, webContents }))
 
   if (archiveAfterHours > 0) return archive(ctx, archiveAfterHours * HOUR)
 }

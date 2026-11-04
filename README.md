@@ -58,6 +58,15 @@ The plugin works with OpenCode Desktop 2.2.5.
 - Links in a dialog of the app, for example in Settings, open in the browser of your computer.
 - If the app cannot show the browser pane, for example because the window is not sufficiently wide, the page opens in the browser of your computer.
 
+### Browser logins
+
+- The browser pane keeps your logins. If you log in to a site, for example GitHub, you stay logged in after you close and open the app again.
+- The panes of all sessions and projects use one set of cookies. Thus, a login in one pane also shows in the other panes.
+- If you log out of a site, or clear "Cookies and site data" for the site, the plugin removes the cookies of the site from all panes.
+- The plugin keeps the cookies encrypted with a key from the keychain of your system. If the system has no keychain, for example Linux with no keyring, the panes share the cookies only until the app closes.
+
+**Warning:** Log in only to sites that the agent can use. The agent controls the same browser pane, and it can do actions on these sites as you.
+
 ## Install
 
 The `opencode` command must be version 2.2.5 or later. Earlier versions do not install a plugin that has only a desktop part. To see your version, run `opencode --version`.
@@ -119,6 +128,7 @@ Open the command palette and type the name of a command:
 - If a new release of OpenCode changes this markup, some changes of the plugin can stop. The rest of OpenCode continues to operate.
 - The branch dropdown operates only with folders on the computer that runs OpenCode Desktop.
 - The pull request badge operates only if the `gh` command is installed and has access to GitHub. The badge shows only pull requests from the owner of the `origin` remote.
+- The browser pane keeps only cookies. A site that keeps its login in local storage, for example some apps on Firebase, does not stay logged in after a restart.
 - Automatic archive operates only while OpenCode Desktop is open. When you open the app again, the plugin archives the due sessions in approximately one minute.
 
 ## Remove
