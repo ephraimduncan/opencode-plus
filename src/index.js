@@ -1,10 +1,12 @@
 import { Command, Plugin, Slot, Store, Style, createKeyed } from "@opencode/plugin/gui"
+import { Browser } from "@opencode/plugin/gui/browser"
 import { Schema } from "effect"
 import { createComponent, createRoot, createSignal } from "solid-js"
 import { insert } from "solid-js/web"
 import { archive } from "./archive.js"
 import * as branch from "./branch.js"
 import * as composer from "./composer.js"
+import * as links from "./links.js"
 import { newSessionRow } from "./location-menu.js"
 import * as pr from "./pr.js"
 import { settings } from "./settings.js"
@@ -245,6 +247,19 @@ function setup(ctx) {
       ),
   })
 
+  const browser = ctx.use(Browser)
+
+  // Opens `url` in a new tab of the open session's browser pane. Returns false when the pane cannot open it, as on the
+  // web, on a narrow window, or before the pane is ready.
+  const browse = (url) => {
+    const pane = browser()
+    const session = ctx.sessions.current()
+
+    if (pane.status !== "active" || !session || !pane.value.canOpen(session)) return false
+    pane.value.open(session, url)
+    return true
+  }
+
   const sync = () => {
     sidebar.shelve(shelf.value.archivedOpen)
     sidebar.layout(groups.value.enabled, working.value.inline)
@@ -303,6 +318,7 @@ function setup(ctx) {
       return dispose
     }),
   )
+  const unlistenLinks = links.listen(browse)
 
   createKeyed(
     () => `${shelf.value.archivedOpen}:${groups.value.enabled}:${working.value.inline}:${running()}`,
@@ -366,6 +382,7 @@ function setup(ctx) {
     document.removeEventListener("scrollend", schedule, true)
     unlisten()
     unlistenUsage()
+    unlistenLinks()
     sidebar.clean()
     pr.clean()
     branch.clean()

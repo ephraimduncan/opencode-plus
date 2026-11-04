@@ -51,6 +51,13 @@ The plugin works with OpenCode Desktop 2.2.5.
 - A branch that a different worktree uses does not show, because git does not let two worktrees use one branch.
 - If `git switch` is not successful, for example because of changes to your files, the plugin shows the error from git.
 
+### Links
+
+- A click on a web link opens the page in a new tab of the browser pane, at the side of the conversation.
+- If you hold ⌘ (Ctrl on Windows and Linux) when you click a link, the page opens in the browser of your computer.
+- Links in a dialog of the app, for example in Settings, open in the browser of your computer.
+- If the app cannot show the browser pane, for example because the window is not sufficiently wide, the page opens in the browser of your computer.
+
 ## Install
 
 The `opencode` command must be version 2.2.5 or later. Earlier versions do not install a plugin that has only a desktop part. To see your version, run `opencode --version`.
