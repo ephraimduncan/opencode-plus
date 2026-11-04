@@ -215,18 +215,23 @@ function RunView(props) {
           </Show>
 
           <Show when={run().logs?.length > 0}>
-            <div class="flex flex-col gap-1">
+            {/* The script's log in a card of the new tab view's launchers, so that it does not read as the description. */}
+            <div class="flex flex-col gap-1 rounded-[8px] border-[0.5px] border-v2-border-border-base bg-v2-background-bg-layer-01 px-3.5 py-2.5">
               <For each={logs() ? run().logs : run().logs.slice(-3)}>
                 {(log) => (
-                  <div class="text-[13px] font-[440] leading-[var(--line-height-compact)] text-v2-text-text-muted">
+                  <div class="break-words text-[12px] font-[440] leading-4 tracking-[-0.04px] text-v2-text-text-muted">
                     {log.message}
                   </div>
                 )}
               </For>
               <Show when={run().logs.length > 3}>
-                <More onClick={() => setLogs(!logs())}>
+                <button
+                  type="button"
+                  class="w-fit pt-1 text-[12px] font-[440] leading-4 tracking-[-0.04px] text-v2-text-text-faint hover:text-v2-text-text-base"
+                  onClick={() => setLogs(!logs())}
+                >
                   {logs() ? ctx.t("wf.logs.less") : ctx.t("wf.logs.all", { count: run().logs.length })}
-                </More>
+                </button>
               </Show>
             </div>
           </Show>
@@ -617,19 +622,6 @@ function Action(props) {
     <ctx.ui.Tooltip value={props.label} placement="top">
       <ctx.ui.IconButton variant="ghost-muted" size="large" icon={props.icon} label={props.label} onClick={props.onClick} />
     </ctx.ui.Tooltip>
-  )
-}
-
-// The new tab view's "Show more".
-function More(props) {
-  return (
-    <button
-      type="button"
-      class="flex h-8 w-fit items-center gap-1 rounded-[6px] px-2 text-[13px] font-[440] text-v2-text-text-muted hover:bg-v2-background-bg-layer-02 hover:text-v2-text-text-base"
-      onClick={() => props.onClick()}
-    >
-      {props.children}
-    </button>
   )
 }
 
