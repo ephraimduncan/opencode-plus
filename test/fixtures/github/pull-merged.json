@@ -1,0 +1,280 @@
+{
+  "additions": 52,
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUxNzE0Nzk4",
+    "is_bot": false,
+    "login": "juliusmarminge",
+    "name": "Julius Marminge"
+  },
+  "autoMergeRequest": {
+    "authorEmail": "julius0216@outlook.com",
+    "commitBody": "",
+    "commitHeadline": "Clear tracked RPCs on reconnect (#2000)",
+    "mergeMethod": "SQUASH",
+    "enabledAt": "2026-04-13T20:13:22Z",
+    "enabledBy": {
+      "id": "MDQ6VXNlcjUxNzE0Nzk4",
+      "is_bot": false,
+      "login": "juliusmarminge",
+      "name": "Julius Marminge"
+    }
+  },
+  "baseRefName": "main",
+  "body": "## Summary\n- Clear any tracked slow unary RPC requests before starting a new WebSocket session.\n- Add a regression test that verifies reconnecting drops stale request tracking.\n\n## Testing\n- `bun run test apps/web/src/rpc/wsTransport.test.ts`\n- Not run: `bun fmt`\n- Not run: `bun lint`\n- Not run: `bun typecheck`\n\n<!-- CURSOR_SUMMARY -->\n---\n\n> [!NOTE]\n> **Low Risk**\n> Low risk: small, targeted change to client-side request-latency bookkeeping plus a regression test. Main risk is unintended masking of in-flight slow-request diagnostics during reconnects.\n> \n> **Overview**\n> Clears any pending/slow unary RPC-ack tracking when `WsTransport.reconnect()` starts a new WebSocket session, preventing stale request IDs from persisting across reconnects.\n> \n> Adds a regression test asserting that a slow-tracked unary request is dropped from `getSlowRpcAckRequests()` after an explicit transport reconnect.\n> \n> <sup>Reviewed by [Cursor Bugbot](https://cursor.com/bugbot) for commit e322bd08df8b8226a9b2d613c1b621973a201e71. Bugbot is set up for automated code reviews on this repo. Configure [here](https://www.cursor.com/dashboard/bugbot).</sup>\n<!-- /CURSOR_SUMMARY -->\n\n<!-- Macroscope's pull request summary starts here -->\n<!-- Macroscope will only edit the content between these invisible markers, and the markers themselves will not be visible in the GitHub rendered markdown. -->\n<!-- If you delete either of the start / end markers from your PR's description, Macroscope will append its summary at the bottom of the description. -->\n> [!NOTE]\n> ### Clear tracked RPC requests on `WsTransport` reconnect\n> Calls `clearAllTrackedRpcRequests()` at the start of `WsTransport.reconnect` before creating a new session, so stale slow-ack tracking entries from the previous connection are discarded. A new test in [wsTransport.test.ts](https://github.com/pingdotgg/t3code/pull/2000/files#diff-b5ef2531b397ef5ecd82322ee43f94fe7e5a9254217abd01ffd5fdfc6ccf6944) verifies the tracking is cleared after reconnect.\n>\n> <!-- Macroscope's review summary starts here -->\n>\n> <sup><a href=\"https://app.macroscope.com\">Macroscope</a> summarized e322bd0.</sup>\n> <!-- Macroscope's review summary ends here -->\n>\n<!-- macroscope-ui-refresh -->\n<!-- Macroscope's pull request summary ends here -->",
+  "changedFiles": 2,
+  "closedAt": "2026-04-13T20:16:09Z",
+  "comments": [
+    {
+      "id": "IC_kwDORLtfbc78rvhD",
+      "author": {
+        "login": "coderabbitai"
+      },
+      "authorAssociation": "CONTRIBUTOR",
+      "body": "<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- This is an auto-generated comment: skip review by coderabbit.ai -->\n\n> [!IMPORTANT]\n> ## Review skipped\n> \n> Auto reviews are disabled on this repository. Please check the settings in the CodeRabbit UI or the `.coderabbit.yaml` file in this repository. To trigger a single review, invoke the `@coderabbitai review` command.\n> \n> <details>\n> <summary>⚙️ Run configuration</summary>\n> \n> **Configuration used**: Repository UI\n> \n> **Review profile**: CHILL\n> \n> **Plan**: Pro\n> \n> **Run ID**: `cd3360ff-3653-428a-a682-a1585db754d8`\n> \n> </details>\n> \n> You can disable this status message by setting the `reviews.review_status` to `false` in the CodeRabbit configuration file.\n> \n> Use the checkbox below for a quick retry:\n> - [ ] <!-- {\"checkboxId\": \"e9bb8d72-00e8-4f67-9cb2-caf3b22574fe\"} --> 🔍 Trigger review\n\n<!-- end of auto-generated comment: skip review by coderabbit.ai -->\n\n\n<!-- finishing_touch_checkbox_start -->\n\n<details>\n<summary>✨ Finishing Touches</summary>\n\n<details>\n<summary>🧪 Generate unit tests (beta)</summary>\n\n- [ ] <!-- {\"checkboxId\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\", \"radioGroupId\": \"utg-output-choice-group-unknown_comment_id\"} -->   Create PR with unit tests\n- [ ] <!-- {\"checkboxId\": \"6ba7b810-9dad-11d1-80b4-00c04fd430c8\", \"radioGroupId\": \"utg-output-choice-group-unknown_comment_id\"} -->   Commit unit tests in branch `t3code/clear-slow-requests-reconnect`\n\n</details>\n\n</details>\n\n<!-- finishing_touch_checkbox_end -->\n\n<!-- tips_start -->\n\n---\n\n\n\n<sub>Comment `@coderabbitai help` to get the list of available commands and usage tips.</sub>\n\n<!-- tips_end -->",
+      "createdAt": "2026-04-13T20:12:56Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/pingdotgg/t3code/pull/2000#issuecomment-4239325251",
+      "viewerDidAuthor": false
+    },
+    {
+      "id": "IC_kwDORLtfbc78r0EM",
+      "author": {
+        "login": "macroscopeapp"
+      },
+      "authorAssociation": "CONTRIBUTOR",
+      "body": "#### Approvability\n\n**Verdict:** Approved\n\nA straightforward bug fix that clears internal RPC tracking state when the WebSocket transport reconnects. The change is 2 lines of production code plus a comprehensive test. The cleared state is purely observability/metrics tracking and doesn't affect actual RPC behavior.\n\n<sup>You can customize Macroscope's approvability policy. [Learn more](https://docs.macroscope.com/approvability#example-custom-eligibility-rules).</sup>",
+      "createdAt": "2026-04-13T20:15:58Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/pingdotgg/t3code/pull/2000#issuecomment-4239343884",
+      "viewerDidAuthor": false
+    }
+  ],
+  "commits": [
+    {
+      "authoredDate": "2026-04-13T20:12:41Z",
+      "authors": [
+        {
+          "email": "julius0216@outlook.com",
+          "id": "MDQ6VXNlcjUxNzE0Nzk4",
+          "login": "juliusmarminge",
+          "name": "Julius Marminge"
+        }
+      ],
+      "committedDate": "2026-04-13T20:12:41Z",
+      "messageBody": "- Reset slow request tracking before creating a new session\n- Add regression coverage for reconnecting unary requests",
+      "messageHeadline": "Clear tracked RPCs on reconnect",
+      "oid": "e322bd08df8b8226a9b2d613c1b621973a201e71"
+    }
+  ],
+  "createdAt": "2026-04-13T20:12:50Z",
+  "deletions": 0,
+  "files": [
+    {
+      "path": "apps/web/src/rpc/wsTransport.test.ts",
+      "additions": 50,
+      "deletions": 0,
+      "changeType": "MODIFIED"
+    },
+    {
+      "path": "apps/web/src/rpc/wsTransport.ts",
+      "additions": 2,
+      "deletions": 0,
+      "changeType": "MODIFIED"
+    }
+  ],
+  "headRefName": "t3code/clear-slow-requests-reconnect",
+  "headRefOid": "e322bd08df8b8226a9b2d613c1b621973a201e71",
+  "headRepositoryOwner": {
+    "id": "MDEyOk9yZ2FuaXphdGlvbjg5MTkxNzI3",
+    "login": "pingdotgg"
+  },
+  "isCrossRepository": false,
+  "isDraft": false,
+  "labels": [
+    {
+      "id": "LA_kwDORLtfbc8AAAACaqFQOw",
+      "name": "vouch:trusted",
+      "description": "PR author is trusted by repo permissions or the VOUCHED list.",
+      "color": "1f883d"
+    },
+    {
+      "id": "LA_kwDORLtfbc8AAAACbJbmcQ",
+      "name": "size:XS",
+      "description": "0-9 changed lines (additions + deletions).",
+      "color": "0e8a16"
+    }
+  ],
+  "latestReviews": [
+    {
+      "id": "",
+      "author": {
+        "login": "macroscopeapp"
+      },
+      "authorAssociation": "CONTRIBUTOR",
+      "body": "<!-- Macroscope (Approvability) review body marker -->",
+      "submittedAt": "2026-04-13T20:15:57Z",
+      "includesCreatedEdit": false,
+      "reactionGroups": [],
+      "state": "APPROVED",
+      "commit": {
+        "oid": ""
+      }
+    }
+  ],
+  "mergeStateStatus": "UNKNOWN",
+  "mergeable": "UNKNOWN",
+  "mergedAt": "2026-04-13T20:16:09Z",
+  "mergedBy": {
+    "id": "MDQ6VXNlcjUxNzE0Nzk4",
+    "is_bot": false,
+    "login": "juliusmarminge",
+    "name": "Julius Marminge"
+  },
+  "milestone": null,
+  "number": 2000,
+  "reviewDecision": "",
+  "reviewRequests": [],
+  "reviews": [
+    {
+      "id": "PRR_kwDORLtfbc70ejfw",
+      "author": {
+        "login": "macroscopeapp"
+      },
+      "authorAssociation": "CONTRIBUTOR",
+      "body": "<!-- Macroscope (Approvability) review body marker -->",
+      "submittedAt": "2026-04-13T20:15:57Z",
+      "includesCreatedEdit": false,
+      "reactionGroups": [],
+      "state": "APPROVED",
+      "commit": {
+        "oid": "e322bd08df8b8226a9b2d613c1b621973a201e71"
+      }
+    }
+  ],
+  "state": "MERGED",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:16:06Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/pingdotgg/t3code/actions/runs/24364555789/job/71152673947",
+      "name": "Format, Lint, Typecheck, Test, Browser Test, Build",
+      "startedAt": "2026-04-13T20:13:05Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:13:00Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/pingdotgg/t3code/actions/runs/24364555793/job/71152674104",
+      "name": "Prepare PR size config",
+      "startedAt": "2026-04-13T20:12:56Z",
+      "status": "COMPLETED",
+      "workflowName": "PR Size"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:13:00Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/pingdotgg/t3code/actions/runs/24364555779/job/71152673978",
+      "name": "Collect PR targets",
+      "startedAt": "2026-04-13T20:12:57Z",
+      "status": "COMPLETED",
+      "workflowName": "PR Vouch"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:13:00Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/pingdotgg/t3code/actions/runs/24364555793/job/71152688157",
+      "name": "Sync PR size label definitions",
+      "startedAt": "2026-04-13T20:13:00Z",
+      "status": "COMPLETED",
+      "workflowName": "PR Size"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:13:08Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/pingdotgg/t3code/actions/runs/24364555789/job/71152673977",
+      "name": "Release Smoke",
+      "startedAt": "2026-04-13T20:12:56Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:13:15Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/pingdotgg/t3code/actions/runs/24364555779/job/71152689126",
+      "name": "Label PR 2000",
+      "startedAt": "2026-04-13T20:13:04Z",
+      "status": "COMPLETED",
+      "workflowName": "PR Vouch"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:13:12Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/pingdotgg/t3code/actions/runs/24364555793/job/71152687816",
+      "name": "Label PR size",
+      "startedAt": "2026-04-13T20:13:03Z",
+      "status": "COMPLETED",
+      "workflowName": "PR Size"
+    },
+    {
+      "__typename": "StatusContext",
+      "context": "CodeRabbit",
+      "startedAt": "2026-04-13T20:13:35Z",
+      "state": "SUCCESS",
+      "targetUrl": ""
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:15:33Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://cursor.com/docs/bugbot",
+      "name": "Cursor Bugbot",
+      "startedAt": "2026-04-13T20:12:55Z",
+      "status": "COMPLETED",
+      "workflowName": ""
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:15:55Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://app.macroscope.com",
+      "name": "Macroscope - Approvability Check",
+      "startedAt": "2026-04-13T20:12:55Z",
+      "status": "COMPLETED",
+      "workflowName": ""
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-04-13T20:13:54Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://app.macroscope.com",
+      "name": "Macroscope - Correctness Check",
+      "startedAt": "2026-04-13T20:12:54Z",
+      "status": "COMPLETED",
+      "workflowName": ""
+    },
+    {
+      "__typename": "StatusContext",
+      "context": "Vercel",
+      "startedAt": "2026-04-13T20:12:48Z",
+      "state": "SUCCESS",
+      "targetUrl": "https://vercel.com/pinglabs/t3code-marketing/2wMENaaEmTAhpMA12GB2DKmpiQyr"
+    }
+  ],
+  "title": "Clear tracked RPCs on reconnect",
+  "url": "https://github.com/pingdotgg/t3code/pull/2000"
+}

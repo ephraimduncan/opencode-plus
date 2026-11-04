@@ -1,0 +1,116 @@
+{
+  "additions": 8,
+  "assignees": [],
+  "author": {
+    "id": "U_kgDOEHnTbg",
+    "is_bot": false,
+    "login": "goransh-walia",
+    "name": "Goransh walia"
+  },
+  "autoMergeRequest": null,
+  "baseRefName": "trunk",
+  "body": "Fixes #14856\n\n### Description\n\nWhen `gh issue develop` is run with `--base` from outside a git repository, the branch is successfully created on GitHub, but the command fails with `failed to run git: fatal: not in a git directory` and exits before printing the branch URL.\n\nThis happened because `developRunCreate` invoked `opts.GitClient.SetBranchConfig` to record `branch.<name>.gh-merge-base` before printing the created branch URL and calling `checkoutBranch`. Running `git config` outside a git repository returns an error, halting execution before outputting the URL.\n\nThis change moves `SetBranchConfig` into `checkoutBranch`, running git configuration only when local branch checkout operations take place.\n\n### How did you test this change?\n\nNot tested. The full test suite was not run locally, so I am relying on CI to confirm.\n\n### Key points\n\n- Moving `SetBranchConfig` into `checkoutBranch` ensures local git configuration is only attempted when local checkout steps are executed. This allows `gh issue develop` executed outside of a repository to successfully display the branch URL and exit without error.\n\n### Notes for reviewers\n\nReview should start in `pkg/cmd/issue/develop/develop.go`. This modifies the merge base configuration logic introduced in #9712.\n\n### Authorship and follow-up\n\nWho wrote this:\n\n- [ ] A human wrote it.\n- [ ] An agent wrote it under close human direction.\n- [x] An agent wrote it independently, and no human has guided the implementation beyond the initial prompt.\n\nWho answers review comments:\n\n- [ ] @username will read and reply directly. Name the account.\n- [ ] An agent will draft replies and @username will read them before they are posted.\n- [x] Nobody has explicitly committed to replying.\n\n_AI-assisted._\n",
+  "changedFiles": 1,
+  "closedAt": null,
+  "comments": [
+    {
+      "id": "IC_kwDODKw3uc8AAAABiXPHTA",
+      "author": {
+        "login": "github-actions"
+      },
+      "authorAssociation": "CONTRIBUTOR",
+      "body": "Thanks for your pull request! While it doesn't meet all of our standard requirements, it appears to be a small, focused contribution and has been routed to the team for review.\n\n**Note:** We still encourage linking to an issue with the `help wanted` label when possible, as it helps us prioritize and track contributions.",
+      "createdAt": "2026-11-03T10:21:11Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/cli/cli/pull/14914#issuecomment-6601033548",
+      "viewerDidAuthor": false
+    }
+  ],
+  "commits": [
+    {
+      "authoredDate": "2026-11-03T10:20:41Z",
+      "authors": [
+        {
+          "email": "goranshw7770777@gmail.com",
+          "id": "U_kgDOEHnTbg",
+          "login": "goransh-walia",
+          "name": "Goransh walia"
+        }
+      ],
+      "committedDate": "2026-11-03T10:20:41Z",
+      "messageBody": "…4856)",
+      "messageHeadline": "fix: `gh issue develop --base` outside a git repository creates t (#1…",
+      "oid": "23ca8c45cd3f0f0320e0d2577eac64380fe9b530"
+    },
+    {
+      "authoredDate": "2026-11-03T10:40:37Z",
+      "authors": [
+        {
+          "email": "goranshw7770777@gmail.com",
+          "id": "U_kgDOEHnTbg",
+          "login": "goransh-walia",
+          "name": "Goransh walia"
+        }
+      ],
+      "committedDate": "2026-11-03T10:40:37Z",
+      "messageBody": "",
+      "messageHeadline": "Merge branch 'trunk' into fix/issue-14856-549",
+      "oid": "8aefc2564e7fa0d6aad62418fc491e266f193931"
+    }
+  ],
+  "createdAt": "2026-11-03T10:20:57Z",
+  "deletions": 8,
+  "files": [
+    {
+      "path": "pkg/cmd/issue/develop/develop.go",
+      "additions": 8,
+      "deletions": 8,
+      "changeType": "MODIFIED"
+    }
+  ],
+  "headRefName": "fix/issue-14856-549",
+  "headRefOid": "8aefc2564e7fa0d6aad62418fc491e266f193931",
+  "headRepositoryOwner": {
+    "id": "U_kgDOEHnTbg",
+    "name": "Goransh walia",
+    "login": "goransh-walia"
+  },
+  "isCrossRepository": true,
+  "isDraft": false,
+  "labels": [
+    {
+      "id": "LA_kwDODKw3uc7Vepyn",
+      "name": "external",
+      "description": "pull request originating outside of the CLI core team",
+      "color": "2700AF"
+    },
+    {
+      "id": "LA_kwDODKw3uc8AAAACX8pa3w",
+      "name": "ready-for-review",
+      "description": "",
+      "color": "39d965"
+    }
+  ],
+  "latestReviews": [],
+  "mergeStateStatus": "BLOCKED",
+  "mergeable": "MERGEABLE",
+  "mergedAt": null,
+  "mergedBy": null,
+  "milestone": null,
+  "number": 14914,
+  "reviewDecision": "REVIEW_REQUIRED",
+  "reviewRequests": [
+    {
+      "__typename": "User",
+      "login": "williammartin"
+    }
+  ],
+  "reviews": [],
+  "state": "OPEN",
+  "statusCheckRollup": [],
+  "title": "Fix: `gh issue develop --base` outside a git repository creates the branch,",
+  "url": "https://github.com/cli/cli/pull/14914"
+}

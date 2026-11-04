@@ -18,7 +18,7 @@ const STALE = 2 * 60 * 1000
 // Lucide's icons, as T3 Code uses them for each state.
 const icon = (body) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`
-const icons = {
+export const icons = {
   open: icon(
     '<circle cx="5" cy="6" r="3"/><path d="M5 9v12"/><circle cx="19" cy="18" r="3"/><path d="m15 9-3-3 3-3"/><path d="M12 6h5a2 2 0 0 1 2 2v7"/>',
   ),
@@ -32,7 +32,7 @@ const icons = {
 }
 
 // T3 Code's colors: emerald, zinc, violet, and red at 600, or at 300 and 90% in dark mode (zinc at 400 and 80%).
-const colors = {
+export const colors = {
   open: ["oklch(59.6% 0.145 163.225)", "oklch(84.5% 0.143 164.978 / 0.9)"],
   draft: ["oklch(55.2% 0.016 285.938)", "oklch(70.5% 0.015 286.067 / 0.8)"],
   merged: ["oklch(54.1% 0.281 293.009)", "oklch(81.1% 0.111 293.571 / 0.9)"],

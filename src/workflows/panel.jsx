@@ -1,5 +1,6 @@
-import { createMemo, createSignal, For, Match, onCleanup, Show, Switch } from "solid-js"
+import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { createKeyed, usePlugin } from "@opencode/plugin/gui"
+import { Action, Bar, clock, Scroll } from "../ui.jsx"
 import { summarize } from "../workflow/tools.js"
 import { active, counts, elapsed as time, groups, spent, tokens } from "./format.js"
 import { Spinner } from "./spinner.jsx"
@@ -88,7 +89,7 @@ function RunList(props) {
           }
         >
           {/* The new tab view's list of launchers. */}
-          <div class="mx-auto flex w-full max-w-[608px] flex-col gap-3 px-6 pt-6 pb-10">
+          <div class="flex w-full min-w-0 flex-col gap-3 px-6 pt-6 pb-10">
             <For each={runs()}>
               {(run) => <RunRow run={run} onOpen={() => props.nav.go(props.sessionID, { runID: run.id })} />}
             </For>
@@ -191,7 +192,7 @@ function RunView(props) {
         </div>
       </Show>
       <Scroll>
-        <div class="mx-auto flex w-full max-w-[608px] flex-col gap-4 px-6 pt-6 pb-10">
+        <div class="flex w-full min-w-0 flex-col gap-4 px-6 pt-6 pb-10">
           <div class="flex flex-col gap-2">
             <Meta
               parts={[
@@ -364,7 +365,7 @@ function AgentView(props) {
         </div>
       </Show>
       <Scroll>
-        <div class="mx-auto flex w-full max-w-[608px] flex-col gap-4 px-6 pt-6 pb-10">
+        <div class="flex w-full min-w-0 flex-col gap-4 px-6 pt-6 pb-10">
           {/* The subagent bar's status line. */}
           <Meta
             parts={[
@@ -597,32 +598,9 @@ function Value(props) {
   )
 }
 
-// The browser panel's toolbar.
-function Bar(props) {
-  return <div class="h-11 shrink-0 flex items-center gap-2 px-3 border-b-[0.5px] border-v2-border-border-muted">{props.children}</div>
-}
-
-function Scroll(props) {
-  return (
-    <div class="min-h-0 flex-1 overflow-y-auto" data-scrollable>
-      {props.children}
-    </div>
-  )
-}
-
 // The browser panel's back button.
 function Back(props) {
   return <Action icon="outline-arrow-left" label={props.label} onClick={props.onClick} />
-}
-
-function Action(props) {
-  const ctx = usePlugin()
-
-  return (
-    <ctx.ui.Tooltip value={props.label} placement="top">
-      <ctx.ui.IconButton variant="ghost-muted" size="large" icon={props.icon} label={props.label} onClick={props.onClick} />
-    </ctx.ui.Tooltip>
-  )
 }
 
 // The subagent bar's line: the parts that are known, with one separator between neighbours.
@@ -752,15 +730,3 @@ const elapsed = (ctx, ms) => time(ms, (key, params) => ctx.t(key, params))
 const finished = (counts) => (counts.done ?? 0) + (counts.failed ?? 0) + (counts.stopped ?? 0)
 
 const message = (error) => error?.message ?? String(error)
-
-// The time each second while `ticking()` holds, for the run times of running work.
-function clock(ticking) {
-  const [now, setNow] = createSignal(Date.now())
-  const timer = setInterval(() => {
-    if (ticking()) setNow(Date.now())
-  }, 1000)
-
-  onCleanup(() => clearInterval(timer))
-
-  return now
-}
