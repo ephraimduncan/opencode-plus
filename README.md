@@ -1,6 +1,6 @@
 # opencode-plus
 
-opencode-plus is a plugin for the OpenCode Desktop app. It puts the sessions in the sidebar into groups by project, archives finished sessions, and makes the conversation easier to read.
+opencode-plus is a plugin for the OpenCode Desktop app. It puts the sessions in the sidebar into groups by project, archives finished sessions, runs dynamic workflows, and makes the conversation easier to read.
 
 The plugin works with OpenCode Desktop 2.2.5.
 
@@ -67,6 +67,30 @@ The plugin works with OpenCode Desktop 2.2.5.
 
 **Warning:** Log in only to sites that the agent can use. The agent controls the same browser pane, and it can do actions on these sites as you.
 
+### Workflows
+
+A workflow is a JavaScript script that the agent writes. The script starts many subagents and collects their results. The workflows operate like the dynamic workflows of Claude Code, with `agent()`, `parallel()`, `pipeline()`, `phase()`, and `log()`.
+
+- The agent starts a workflow only when you ask for one. You can put the word `ultracode` in a prompt, or ask in your own words, for example "use a workflow".
+- The `/ultracode` command turns on ultracode for the session. Then the agent uses a workflow for each task that is not a short answer or a small edit. `/ultracode off` turns it off.
+- Each agent of a workflow is a subagent session of OpenCode, with the `general` agent type. The agents obey your permission rules.
+- A workflow runs in the background. When the workflow completes, the agent gets the result and continues its answer.
+- A workflow can start many agents. Thus, it can use many more tokens than a usual answer.
+- The "Workflows" panel at the side of the conversation shows the workflows of the session. A new workflow opens the panel. The new tab of the side panel and the "Show workflows" command also open it.
+- A click on a workflow shows its phases and its agents. Each agent shows its last tool call, its number of tokens, and its time.
+- A click on an agent shows its prompt, its tool calls and its text as they occur, and its result.
+- The panel has buttons to pause, resume, and stop a workflow. When you pause a workflow, the agents that operate at that time complete their work, but no new agent starts.
+- If you ask the agent to resume a stopped workflow, the completed agents do not run again. Their results come from a cache.
+- The `⋯` menu of a workflow saves its script as a command for the project or for you. The command has the name of the workflow, and the text after the command goes to the script as `args`.
+- The `/deep-research` command is a built-in workflow. It uses web search to find sources for your question, lets three agents examine each claim, and writes a report with its sources.
+- An agent with the option `isolation: 'worktree'` operates in a new git worktree. Thus, it does not change the files in your folder.
+
+A workflow starts with no question, because OpenCode lets agents do all actions by default. To make OpenCode ask you before each workflow starts, add this rule to the `permissions` list of your global `opencode.json` or `opencode.jsonc`:
+
+```jsonc
+{ "action": "workflow", "resource": "*", "effect": "ask" }
+```
+
 ## Install
 
 The `opencode` command must be version 2.2.5 or later. Earlier versions do not install a plugin that has only a desktop part. To see your version, run `opencode --version`.
@@ -82,9 +106,21 @@ If your `opencode` command is older than the desktop app, use the command that t
 2. Open OpenCode Desktop. If the app is open, wait a few seconds.
 3. Open **Settings > Extensions > Plugins** and make sure that `opencode-plus` is in the list.
 
+## Update
+
+OpenCode keeps the installed version of the plugin until you update it. A restart of OpenCode does not get a new version.
+
+1. Run this command:
+
+   ```sh
+   opencode plugin update
+   ```
+
+2. Close OpenCode Desktop and open it again.
+
 ## Options
 
-To change the behavior of the plugin, use the `options` object of the plugin entry. The entry is in your global `opencode.json` or `opencode.jsonc`, in the `plugins` list. This example shows each option with its default value:
+To change the behavior of the plugin, use the `options` object of the plugin entry. The entry is in your global `opencode.json` or `opencode.jsonc`, in the `plugins` list. This example shows the options with their default values:
 
 ```jsonc
 {
@@ -95,7 +131,9 @@ To change the behavior of the plugin, use the `options` object of the plugin ent
         "archiveAfterHours": 12,
         "hideAgent": "build",
         "responseLabel": "Response",
-        "lowercaseVariants": true
+        "lowercaseVariants": true,
+        "workflows": true,
+        "workflowSize": "medium"
       }
     }
   ]
@@ -108,6 +146,9 @@ To change the behavior of the plugin, use the `options` object of the plugin ent
 | `hideAgent` | `"build"` | The agent for which the agent dropdown does not show. `false` always shows the dropdown. |
 | `responseLabel` | `"Response"` | The text on the divider above the last text of an answer. `""` shows the divider with no text. |
 | `lowercaseVariants` | `true` | Shows reasoning levels in lowercase. `false` keeps the capital first letter that the app shows. |
+| `workflows` | `true` | Lets the agent run workflows. `false` removes the workflow tool, the "Workflows" panel, and the workflow commands. |
+| `workflowSize` | `"medium"` | The number of agents that the agent tries to use in each workflow: `"small"` (less than 5), `"medium"` (less than 10), `"large"` (less than 50), or `"unrestricted"`. If you ask for more agents, the agent uses more. |
+| `workflowConcurrency` | The number of CPU cores minus 2, from 1 to 16 | The maximum number of agents of one workflow that operate at the same time. |
 
 When you save a change to the options, OpenCode loads the plugin again with the new values.
 
@@ -120,6 +161,8 @@ Open the command palette and type the name of a command:
 | "Show archived sessions" | Opens the "Archived" section. When the section is open, the command is "Hide archived sessions". |
 | "Stop grouping sessions by project" | Shows one list with no project groups. The command then changes to "Group sessions by project". |
 | "Show working sessions in their own section" | Moves working sessions back to the "Working" section of the app. |
+| "Show workflows" | Opens the "Workflows" panel. If the panel is open, the command closes it. |
+| "Turn on ultracode for this session" | Does the same as `/ultracode`. When ultracode is on, the command is "Turn off ultracode for this session". |
 
 ## Limits
 
@@ -130,6 +173,7 @@ Open the command palette and type the name of a command:
 - The pull request badge operates only if the `gh` command is installed and has access to GitHub. The badge shows only pull requests from the owner of the `origin` remote.
 - The browser pane keeps only cookies. A site that keeps its login in local storage, for example some apps on Firebase, does not stay logged in after a restart.
 - Automatic archive operates only while OpenCode Desktop is open. When you open the app again, the plugin archives the due sessions in approximately one minute.
+- A workflow runs in the OpenCode server. If OpenCode Desktop closes, the workflow stops.
 
 ## Remove
 

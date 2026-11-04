@@ -15,6 +15,13 @@ test.each([
   [{ responseLabel: false }, { responseLabel: "" }],
   [{ responseLabel: "Answer" }, { responseLabel: "Answer" }],
   [{ lowercaseVariants: false }, { lowercaseVariants: false }],
+  [{}, { workflows: true, workflowSize: "medium", workflowConcurrency: undefined }],
+  [{ workflows: false }, { workflows: false }],
+  [{ workflowSize: "large" }, { workflowSize: "large" }],
+  [{ workflowSize: "huge" }, { workflowSize: "medium" }],
+  [{ workflowConcurrency: 4 }, { workflowConcurrency: 4 }],
+  [{ workflowConcurrency: 0 }, { workflowConcurrency: undefined }],
+  [{ workflowConcurrency: 1000 }, { workflowConcurrency: 256 }],
 ])("%o", (options, want) => {
   expect(settings(options)).toMatchObject(want)
 })

@@ -17,6 +17,7 @@ import * as sidebar from "./sidebar.js"
 import * as timeline from "./timeline.js"
 import * as usage from "./usage.js"
 import * as userMessage from "./user-message.js"
+import { strings as workflowStrings, workflows } from "./workflows/index.jsx"
 
 const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
@@ -328,6 +329,8 @@ function setup(ctx) {
     sync,
   )
 
+  if (options.workflows) workflows(ctx)
+
   ctx.add(Style, sidebar.css)
   ctx.add(Style, pr.css)
   ctx.add(Style, branch.css)
@@ -447,6 +450,7 @@ export default Plugin.define({
       "message.copy": "Copy message",
       "message.copied": "Copied",
       "message.copyFailed": "Could not copy the message",
+      ...workflowStrings,
     },
   },
   setup,
