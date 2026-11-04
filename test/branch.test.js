@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest"
-import { branches, check, clean, command, directory, mount } from "../src/branch.js"
+import { branches, check, clean, command, css, directory, mount, show, state } from "../src/branch.js"
 
 const icon = (name) => `<svg data-slot="icon-svg" width="16" height="16"><use href="#opencode-v2-icon-${name}"></use></svg>`
 
@@ -42,44 +42,47 @@ const project = (canonical, sandboxes) => ({
 
 beforeEach(() => {
   clean()
+  document.head.innerHTML = ""
   document.body.innerHTML = ""
 })
 
-// Catches a dropdown on the wrong branch icon, a second dropdown on every pass over the page, and a dropdown that
-// outlives its label: the app's own picker for a new worktree and a branch icon outside the tray stay as they are.
-test("gives the tray's branch label one dropdown, and ends it with the label", () => {
+// Catches a dropdown on the wrong branch icon, a second dropdown on every pass over the page, a dropdown that a later
+// pass does not update, and a dropdown that outlives its label: the app's own picker for a new worktree and a branch
+// icon outside the tray stay as they are.
+test("gives the tray's branch label one dropdown, updates it on each later pass, and ends it with the label", () => {
   document.body.innerHTML =
     tray(label("main"), "/Users/ephraim/dev/opencode-plus") +
     tray(picker) +
     `<div class="flex items-center gap-1.5">${icon("branch")}<span>main</span></div>`
   const rendered = []
+  const updated = []
   const disposed = []
   const render = (container, element) => {
     const name = element.querySelector("span").textContent
     rendered.push(name)
 
-    return () => disposed.push(name)
+    return { update: () => updated.push(name), dispose: () => disposed.push(name) }
   }
 
   mount(render)
   mount(render)
 
   expect(rendered).toEqual(["main"])
+  expect(updated).toEqual(["main"])
 
   document.body.innerHTML = ""
   mount(render)
 
   expect(disposed).toEqual(["main"])
+  expect(updated).toEqual(["main"])
 })
 
-// Catches a check on the wrong branch, such as one whose name only starts with the current branch's name.
-test("checks the label's branch in its open dropdown", () => {
-  document.body.innerHTML = tray(label("main"), "/Users/ephraim/dev/opencode-plus")
-  // The app's menu button, as Kobalte marks it while its menu is open.
+// The app's menu button, as Kobalte marks it while its menu is open, and the open menu with a row for each of `names`.
+const open = (...names) => {
   mount((container) => {
     container.innerHTML = `<button type="button" aria-haspopup="true" aria-expanded="true" aria-controls="menu-1" data-expanded="">Switch branch</button>`
 
-    return () => {}
+    return { update: () => {}, dispose: () => {} }
   })
   const row = (name) =>
     `<div role="menuitem" data-component="menu-v2-item" data-appearance="compact">` +
@@ -87,14 +90,63 @@ test("checks the label's branch in its open dropdown", () => {
   document.body.insertAdjacentHTML(
     "beforeend",
     `<div id="menu-1" role="menu" data-component="menu-v2-content" data-appearance="compact">` +
-      `${row("feature/x")}${row("main-old")}${row("main")}<hr data-slot="menu-v2-separator">` +
+      `${names.map(row).join("")}<hr data-slot="menu-v2-separator">` +
       `<div role="group"><span data-slot="menu-v2-group-label">Remote</span>${row("origin/new-remote")}</div></div>`,
   )
 
+  return document.querySelector("[data-plus-branch]")
+}
+
+const checked = () => Array.from(document.querySelectorAll("[data-plus-branch-current]"), (item) => item.textContent)
+
+// Catches a check on the wrong branch, such as one whose name only starts with the current branch's name.
+test("checks the label's branch in its open dropdown", () => {
+  document.body.innerHTML = tray(label("main"), "/Users/ephraim/dev/opencode-plus")
+  open("feature/x", "main-old", "main")
+
   check()
 
-  const checked = Array.from(document.querySelectorAll("[data-plus-branch-current]"), (item) => item.textContent)
-  expect(checked).toEqual(["main"])
+  expect(checked()).toEqual(["main"])
+})
+
+// With "Local" chosen after ⌘T in a worktree's session, the app names the worktree's branch, but the path and the new
+// session are the project folder's. Catches a label that keeps the worktree's branch, a check that follows it, and a
+// label that hides the app's branch when the folder's branch is unknown.
+test.each([
+  ["feat/workflows", "main", "main"],
+  ["main", "main", "main"],
+  ["feat/workflows", undefined, "feat/workflows"],
+])("with the app's %s and the folder's %s, the label shows %s and checks it", (app, folder, want) => {
+  document.head.innerHTML = `<style>${css}</style>`
+  document.body.innerHTML = tray(label(app), "/Users/ephraim/dev/opencode-plus")
+  const element = open("main", "demo", "feat/workflows")
+
+  show(element, folder)
+  check()
+
+  const shown = Array.from(element.querySelectorAll("span"))
+    .filter((span) => getComputedStyle(span).display !== "none")
+    .map((span) => span.textContent)
+  expect(shown).toEqual([want])
+  expect(checked()).toEqual([want])
+})
+
+// Catches a list that stays on the old folder's branches after the user chooses a different folder or the app's branch
+// changes, and a list that loads again on each pass because the label now shows the folder's branch.
+test("the tray's state changes with its path and the app's branch, but not with the branch the label shows", () => {
+  document.body.innerHTML = tray(label("feat/workflows"), "/Users/ephraim/dev/opencode-plus")
+  const element = open("main")
+  const before = state(element)
+
+  show(element, "main")
+  expect(state(element)).toBe(before)
+
+  element.querySelector(":scope > span").textContent = "demo"
+  expect(state(element)).not.toBe(before)
+
+  element.querySelector(":scope > span").textContent = "feat/workflows"
+  document.querySelector('[data-slot="new-session-location-path"] bdi').textContent = "/Users/ephraim/…/3a950b/crisp-squid"
+  expect(state(element)).not.toBe(before)
 })
 
 // Catches git running in the wrong folder: a path the tray shows in full is used as it is, and a shortened path

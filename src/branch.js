@@ -6,6 +6,10 @@ import { chevron, mark, set } from "./dom.js"
 //
 // Each label gets a dropdown like the chat input's reasoning dropdown: the app's menu, opened by a button that lies
 // unseen over the label. The label keeps showing the branch, so it follows the app when the branch changes.
+//
+// With "Local" chosen, the session runs in the project folder that the path names, but the app's label names the
+// branch of the tab's folder. After ⌘T in a session in a worktree, that is the worktree's branch. The label then shows
+// the branch of the path's folder in a span of its own.
 
 const TRAY = '[data-slot="new-session-composer"]'
 const PATH = '[data-slot="new-session-location-path"]'
@@ -13,6 +17,7 @@ const PATH = '[data-slot="new-session-location-path"]'
 const ICON = ["branch", "new-branch"].map((name) => `${TRAY} use[href="#opencode-v2-icon-${name}"]`).join(", ")
 
 const BRANCH = "data-plus-branch"
+const NAME = "data-plus-branch-name"
 const TRIGGER = "data-plus-branch-trigger"
 const MENU = "data-plus-branch-menu"
 const CURRENT = "data-plus-branch-current"
@@ -41,6 +46,16 @@ export const css = `
 [${BRANCH}]:is(:hover, :has(:focus-visible), :has([data-expanded])) {
   color: var(--color-v2-text-text-base);
   background-color: var(--color-v2-overlay-simple-overlay-hover);
+}
+[${NAME}] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[${NAME}]:empty,
+[${BRANCH}] > span:has(+ [${NAME}]:not(:empty)) {
+  display: none;
 }
 [${TRIGGER}] {
   position: absolute;
@@ -80,11 +95,11 @@ export const LIST = "git branch --all --no-color --no-column --sort=-committerda
 
 const dropdowns = new Map()
 
-// Gives each tray's branch label a dropdown, which `render(container, label)` puts in `container` and returns the
-// cleanup of. Ends the dropdowns of labels that left the page.
+// Gives each tray's branch label a dropdown, which `render(container, label)` puts in `container`. It returns the
+// dropdown's `update`, which each later pass runs, and its cleanup. Ends the dropdowns of labels that left the page.
 export function mount(render) {
-  dropdowns.forEach((dispose, label) => {
-    if (label.isConnected) return
+  dropdowns.forEach(({ update, dispose }, label) => {
+    if (label.isConnected) return update()
     dispose()
     dropdowns.delete(label)
   })
@@ -93,13 +108,29 @@ export function mount(render) {
     const label = icon.closest("svg").parentElement
 
     if (dropdowns.has(label)) return
+    const name = document.createElement("span")
     const container = document.createElement("div")
+    name.setAttribute(NAME, "")
+    name.dir = "auto"
     container.setAttribute(TRIGGER, "")
     label.setAttribute(BRANCH, "")
-    label.append(container)
+    label.append(name, container)
     dropdowns.set(label, render(container, label))
   })
 }
+
+// Shows `branch` in the label in place of the branch that the app names. When the two are the same, or `branch` is
+// undefined, the app's name shows.
+export function show(label, branch) {
+  const name = label.querySelector(`[${NAME}]`)
+  const text = branch === named(label) ? "" : (branch ?? "")
+
+  if (name.textContent !== text) name.textContent = text
+}
+
+// The state of the label's tray: the path at its end, and the branch that the app names. When either changes, the
+// branch of the label's folder can change too.
+export const state = (label) => `${path(label)}\n${named(label)}`
 
 // Marks each open dropdown, and in it the branch its label shows. A name that ends in "…" gets its full text as a
 // tooltip.
@@ -108,7 +139,8 @@ export function check() {
     const menu = document.getElementById(trigger.getAttribute("aria-controls"))
 
     if (!menu) return
-    const current = trigger.closest(`[${BRANCH}]`).querySelector(":scope > span").textContent.trim()
+    const label = trigger.closest(`[${BRANCH}]`)
+    const current = label.querySelector(`[${NAME}]`).textContent || named(label)
 
     set(menu, MENU, "")
     menu.querySelectorAll('[data-component="menu-v2-item"]').forEach((item) => {
@@ -123,7 +155,7 @@ export function check() {
 // The folder of the label's branch: the path at the end of its tray. The app shortens a long path to its first and
 // last folders around "…"; then it is the project folder or worktree from `projects()` whose path fits.
 export async function directory(label, projects) {
-  const shown = label.closest(TRAY)?.querySelector(PATH)?.textContent ?? ""
+  const shown = path(label)
 
   if (!shown.includes("…")) return shown || undefined
   const [start, end] = shown.split("…")
@@ -175,8 +207,14 @@ export const quote = (arg) => (/^[\w./-]+$/.test(arg) ? arg : `'${arg.replaceAll
 
 // Removes every dropdown and mark, as when the plugin stops.
 export function clean() {
-  dropdowns.forEach((dispose) => dispose())
+  dropdowns.forEach(({ dispose }) => dispose())
   dropdowns.clear()
-  document.querySelectorAll(`[${TRIGGER}]`).forEach((container) => container.remove())
+  document.querySelectorAll(`[${NAME}], [${TRIGGER}]`).forEach((element) => element.remove())
   document.querySelectorAll(`[${BRANCH}]`).forEach((label) => label.removeAttribute(BRANCH))
 }
+
+// The path at the end of the label's tray, as the app shows it.
+const path = (label) => label.closest(TRAY)?.querySelector(PATH)?.textContent ?? ""
+
+// The branch that the app's own text in the label names.
+const named = (label) => label.querySelector(":scope > span").textContent.trim()
