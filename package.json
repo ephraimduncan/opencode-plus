@@ -1,7 +1,7 @@
 {
   "name": "opencode-plus",
   "version": "0.1.0",
-  "description": "A plugin for OpenCode Desktop. It puts sidebar sessions into groups by project, archives finished sessions, and makes the conversation easier to read.",
+  "description": "A plugin for OpenCode Desktop. It puts sidebar sessions into groups by project, archives finished sessions, runs dynamic workflows, and makes the conversation easier to read.",
   "license": "MIT",
   "type": "module",
   "repository": "github:ephraimduncan/opencode-plus",
@@ -11,10 +11,14 @@
     "opencode-desktop"
   ],
   "exports": {
+    ".": "./src/server.js",
+    "./rpc": "./src/rpc.js",
     "./gui-experimental": "./dist/gui-experimental.cjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "skills"
   ],
   "scripts": {
     "bundle": "vite build",
