@@ -3,7 +3,7 @@ import { Browser } from "@opencode/plugin/gui/browser"
 import { Schema } from "effect"
 // A window gets an inert module. Only the main process uses it.
 import { app, safeStorage, webContents } from "electron"
-import { createComponent, createRoot, createSignal } from "solid-js"
+import { createComponent, createEffect, createRoot, createSignal } from "solid-js"
 import { insert } from "solid-js/web"
 import { archive } from "./archive.js"
 import * as branch from "./branch.js"
@@ -148,24 +148,37 @@ function setup(ctx) {
     }
   }
 
-  // Puts in `container` the dropdown of the branches of the folder that `label` names, and returns its cleanup. The
-  // list loads again each time the pointer or the focus comes to the label, so it is ready when the dropdown opens.
+  // Puts in `container` the dropdown of the branches of the folder that `label` names, and returns its `update` and
+  // cleanup. The list loads at once, and the label shows the folder's current branch from it. The list loads again
+  // each time the pointer or the focus comes to the label, so it is ready when the dropdown opens. A pass that finds a
+  // changed tray empties the list and loads it again.
   const dropdown = (container, label) =>
     createRoot((dispose) => {
       // Undefined until the list loads, null when it cannot load.
       const [branches, setBranches] = createSignal()
       const [busy, setBusy] = createSignal(false)
       let loading = false
+      // The state of the tray when the list started to load.
+      let loaded
 
       const load = () => {
         if (loading) return
         loading = true
+        loaded = branch.state(label)
         list(label)
           .catch(() => undefined)
-          .then((value) => setBranches(value ?? null))
-          .finally(() => {
+          .then((value) => {
             loading = false
+            // The list is of the folder that the tray named when it started.
+            if (branch.state(label) !== loaded) return update()
+            setBranches(value ?? null)
           })
+      }
+
+      const update = () => {
+        if (branch.state(label) === loaded) return
+        setBranches(undefined)
+        load()
       }
 
       const apply = async (args, failed) => {
@@ -218,8 +231,11 @@ function setup(ctx) {
         return [...top, ...local, { type: "separator" }, group]
       }
 
+      createEffect(() => branch.show(label, branches()?.current))
       container.addEventListener("pointerenter", load)
       container.addEventListener("focusin", load)
+      // The app changes its branch text in place, which the page-wide observer does not report.
+      labels.observe(label, { subtree: true, characterData: true })
       insert(container, () =>
         createComponent(ctx.ui.Menu, {
           label: ctx.t("branch.switch"),
@@ -233,8 +249,9 @@ function setup(ctx) {
           },
         }),
       )
+      load()
 
-      return dispose
+      return { update, dispose }
     })
 
   const copyButton = userMessage.button({

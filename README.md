@@ -44,6 +44,8 @@ The plugin works with OpenCode Desktop 2.2.5.
 ### Branch on the new session page
 
 - A click on the branch name under the chat input opens a dropdown, like the dropdown of the reasoning level. The dropdown shows the branches of the folder, with a check on the current branch.
+- The branch name shows the current branch of the folder where the new session runs. The path of this folder shows after the branch name.
+- If you open the page with ⌘T from a session in a worktree, the app can show the branch of the worktree near "Local". But with "Local", the new session runs in the project folder. Thus, the plugin shows the branch of the project folder.
 - The plugin runs `git switch` with the branch that you select.
 - The first item, "New branch…", asks for a name. The plugin then runs `git switch -c` with the name. The new branch starts from the current branch and keeps your changes. Spaces in the name become hyphens.
 - A long branch name ends in "…". If you hold the pointer on it, the full name shows.
