@@ -46,3 +46,23 @@ describe("due", () => {
     expect(due(value, NOW, AFTER, KEY)).toBe(want)
   })
 })
+
+describe("due after the pull request of its branch merged", () => {
+  test.each([
+    // Catches a merge that waits for the 12 hours.
+    ["merged an hour after its last run", session({ busy: 3, idle: 2 }), 1, true],
+    // Catches a comparison with the end of the run: the agent can merge in its own run.
+    ["merged by its last run", session({ busy: 3, idle: 1 }), 2, true],
+    // Catches a follow-up session that the old merge archives again after each run.
+    ["ran again after the merge", session({ busy: 1, idle: 0.5 }), 2, false],
+    ["made after the merge, never ran", session({ created: 1 }), 2, false],
+    ["unarchived by hand after the merge", session({ busy: 3, idle: 2, kept: 0.5 }), 1, false],
+    ["unarchived by hand, then merged", session({ busy: 3, idle: 2, kept: 1.5 }), 1, true],
+    // Catches a merge that archives a session while it works or before its keep mark is written.
+    ["still runs", session({ busy: 2 }), 1, false],
+    ["changed a minute ago", session({ busy: 3, idle: 2, updated: 1 / 60 }), 1, false],
+    ["a subagent session", session({ busy: 3, idle: 2, parentID: "ses_e5ec87753ffd9GaGacQL0ZRhT0" }), 1, false],
+  ])("%s: %s", (_, value, merged, want) => {
+    expect(due(value, NOW, AFTER, KEY, NOW - merged * HOUR)).toBe(want)
+  })
+})

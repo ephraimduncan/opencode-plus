@@ -21,6 +21,7 @@ const output = (remote, pulls) => `${remote}\n${JSON.stringify(pulls)}\n`
 const pull = (number, state, updatedAt, login = "ephraimduncan", isDraft = false) => ({
   headRepositoryOwner: { id: "MDQ6VXNlcjU1MTQzNzk5", name: "Ephraim Duncan", login },
   isDraft,
+  mergedAt: state === "MERGED" ? updatedAt : null,
   number,
   state,
   title: `PR ${number}`,
@@ -50,10 +51,26 @@ test("picks the open pull request of the remote's owner", () => {
         pull(12, "OPEN", "2026-11-03T12:00:00Z", "someone-else"),
       ]),
     ),
-  ).toEqual({ number: 7, title: "PR 7", url: "https://github.com/ephraimduncan/opencode-plus/pull/7", state: "open" })
+  ).toEqual({
+    number: 7,
+    title: "PR 7",
+    url: "https://github.com/ephraimduncan/opencode-plus/pull/7",
+    state: "open",
+    mergedAt: null,
+  })
   const draft = pull(3, "OPEN", "2026-11-01T10:00:00Z", "ephraimduncan", true)
   expect(latest(output("https://github.com/EphraimDuncan/opencode-plus", [draft])).state).toBe("draft")
   expect(latest(output(remote, [pull(12, "OPEN", "2026-11-03T12:00:00Z", "someone-else")]))).toBeUndefined()
+})
+
+// Catches a merged pull request without its time: the archive of its sessions needs it.
+test("gives the time of the merge", () => {
+  const merged = pull(9, "MERGED", "2026-11-03T10:00:00Z")
+
+  expect(latest(output("git@github.com:ephraimduncan/opencode-plus.git", [merged]))).toMatchObject({
+    state: "merged",
+    mergedAt: "2026-11-03T10:00:00Z",
+  })
 })
 
 // Catches a lookup for every row and every pass: rows of one project and branch share a lookup, and the badge shows
