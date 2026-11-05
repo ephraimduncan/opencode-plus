@@ -45,7 +45,9 @@ The plugin works with OpenCode Desktop 2.2.5.
 ### Automatic archive
 
 - The plugin archives a session 12 hours after its last run stops, if no new activity occurs.
-- When the pull request of the branch of a session merges, the plugin archives the session in approximately two minutes. This pull request is the pull request that the badge in the sidebar shows.
+- When the pull request of the branch of a session merges, the plugin archives the session in approximately 10 seconds. This pull request is the pull request that the badge in the sidebar shows.
+- If the agent merges the pull request in its run, the plugin archives the session approximately 30 seconds after the run stops.
+- The plugin asks GitHub about the pull request every 10 seconds. If nothing changed, GitHub does not count the request against your rate limit.
 - If a run of the session starts after the merge, the merge does not archive the session. Thus, a session that you continue after the merge stays.
 - If an archived session gets a new message or a new run, the plugin unarchives it.
 - If you unarchive a session yourself, the plugin keeps the session until it has new activity or until its pull request merges.

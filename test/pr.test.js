@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { beforeEach, expect, test, vi } from "vitest"
-import { clean, latest, show } from "../src/pr.js"
+import { answer, clean, latest, show } from "../src/pr.js"
 
 // A session row as the app's sidebar renders it, with its branch line (OpenCode Desktop 2.2.5, inbox.tsx).
 const row = (project, title, branch, status = "ready") =>
@@ -57,6 +59,7 @@ test("picks the open pull request of the remote's owner", () => {
     url: "https://github.com/ephraimduncan/opencode-plus/pull/7",
     state: "open",
     mergedAt: null,
+    updatedAt: "2026-11-01T10:00:00Z",
   })
   const draft = pull(3, "OPEN", "2026-11-01T10:00:00Z", "ephraimduncan", true)
   expect(latest(output("https://github.com/EphraimDuncan/opencode-plus", [draft])).state).toBe("draft")
@@ -71,6 +74,39 @@ test("gives the time of the merge", () => {
     state: "merged",
     mergedAt: "2026-11-03T10:00:00Z",
   })
+})
+
+// What `gh api --include` printed for the pull requests of a branch (2026-11-05), without the headers of the token.
+const included = (name) => readFileSync(join(import.meta.dirname, "fixtures/github", `${name}.txt`), "utf8")
+
+// Catches an answer that loses the merge or the ETag: without the ETag, each request counts against the rate limit.
+test("reads the merged pull request and the ETag from GitHub's answer", () => {
+  expect(answer(included("pulls-merged"))).toEqual({
+    etag: 'W/"ce976e923f5356df840b0e52c3e19dec7630c66f392b25a121ec6766363e3760"',
+    pull: {
+      number: 17,
+      title: "feat: archive a session when its pull request merges",
+      url: "https://github.com/ephraimduncan/opencode-plus/pull/17",
+      state: "merged",
+      mergedAt: "2026-11-05T11:40:25Z",
+      updatedAt: "2026-11-05T11:40:25Z",
+    },
+  })
+})
+
+// Catches a 304 read as a branch with no pull request, which forgets the pull request and the ETag.
+test("an answer of 304 changes nothing", () => {
+  expect(answer(included("pulls-unchanged"))).toBeUndefined()
+})
+
+// Catches the merge of an earlier pull request that archives the sessions of a reused branch with an open one.
+test("an open pull request of the branch hides an older merged one in GitHub's answer", () => {
+  const output = included("pulls-merged")
+  const [head, body] = output.split("\r\n\r\n")
+  const [merged] = JSON.parse(body)
+  const open = { ...merged, number: 18, state: "open", merged_at: null, updated_at: "2026-11-05T10:00:00Z" }
+
+  expect(answer(`${head}\r\n\r\n${JSON.stringify([merged, open])}`).pull).toMatchObject({ number: 18, state: "open" })
 })
 
 // Catches a lookup for every row and every pass: rows of one project and branch share a lookup, and the badge shows

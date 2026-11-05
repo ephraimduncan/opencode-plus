@@ -7,7 +7,8 @@
 import * as pr from "./pr.js"
 import * as shell from "./shell.js"
 
-const MINUTE = 60 * 1000
+const SECOND = 1000
+const MINUTE = 60 * SECOND
 const PAGE = 200
 const EVENTS = ["session.inbox.enqueued", "session.execution.started", "session.unarchived"]
 
@@ -26,8 +27,9 @@ export function due(session, now, after, key, merged) {
 
   if (busy !== undefined && (idle === undefined || busy > idle)) return false
 
-  // Changed a moment ago, such as unarchived before its keep mark was written.
-  if (now - updated < 2 * MINUTE) return false
+  // Changed a moment ago, such as unarchived before its keep mark was written. Short, as the end of a run that merged
+  // the pull request also changes the session.
+  if (now - updated < 30 * SECOND) return false
 
   const start = busy ?? created
   const last = Math.max(created, busy ?? 0, idle ?? 0)
@@ -43,7 +45,7 @@ export function due(session, now, after, key, merged) {
   return now - last >= after
 }
 
-// Archives due sessions every 2 minutes, and follows the server's events to bring sessions back. Returns the stop.
+// Archives due sessions every 10 seconds, and follows the server's events to bring sessions back. Returns the stop.
 export function archive(ctx, after) {
   const key = `${ctx.id}.keptAt`
   const started = Date.now()
@@ -63,16 +65,32 @@ export function archive(ctx, after) {
     }
   }
 
+  // Each folder's owner of `origin`, and GitHub's last answer about the pull request of the folder's branch.
+  const folders = new Map()
+
   // When the pull request of the branch of `directory` merged, or undefined. The pull request is the one that the
   // badge in the sidebar shows. A folder on its default branch has no lookup.
   const merged = async (directory) => {
     const { current, default: base } = (await ctx.client.vcs.get({ location: { directory } })).data.branch
 
     if (!current || current === base) return
-    const listed = await shell.run(ctx.client, directory, pr.command(current))
-    const pull = listed.ok ? pr.latest(listed.output) : undefined
+    let folder = folders.get(directory)
 
-    return pull?.state === "merged" ? Date.parse(pull.mergedAt) : undefined
+    if (!folder) {
+      const remote = await shell.run(ctx.client, directory, "git remote get-url origin")
+
+      folder = { owner: remote.ok ? pr.owner(remote.output) : undefined }
+      folders.set(directory, folder)
+    }
+
+    if (!folder.owner) return
+
+    // The ETag can be from an earlier branch of the folder. A 304 then means that the two branches have the same
+    // answer, so the pull request that the folder keeps is still correct.
+    const asked = await shell.run(ctx.client, directory, pr.ask(folder.owner, current, folder.etag))
+    Object.assign(folder, pr.answer(asked.output))
+
+    return folder.pull?.state === "merged" ? Date.parse(folder.pull.mergedAt) : undefined
   }
 
   let sweeping = false
@@ -82,18 +100,17 @@ export function archive(ctx, after) {
 
     try {
       const now = Date.now()
+      // Only a session that a merge at this moment would archive needs a lookup.
+      const list = (await roots()).filter((session) => due(session, now, after, key, now))
       // The sessions of a folder share its branch, so they share one lookup. A folder that is gone, such as a removed
       // worktree, has no pull request.
-      const lookups = new Map()
-      const lookup = (directory) => {
-        if (!lookups.has(directory)) lookups.set(directory, merged(directory).catch(() => undefined))
-        return lookups.get(directory)
-      }
-      // Only a session that a merge at this moment would archive needs the lookup.
-      const list = (await roots()).filter((session) => due(session, now, after, key, now))
+      const directories = new Set(list.map((session) => session.location.directory))
+      const lookups = new Map(
+        Array.from(directories, (directory) => [directory, merged(directory).catch(() => undefined)]),
+      )
 
       for (const session of list) {
-        if (!due(session, now, after, key, await lookup(session.location.directory))) continue
+        if (!due(session, now, after, key, await lookups.get(session.location.directory))) continue
         await ctx.client.session.update({ sessionID: session.id, archived: true })
         ctx.log.write("info", `${ctx.id}: archived ${session.id} "${session.title ?? ""}"`)
       }
@@ -144,8 +161,11 @@ export function archive(ctx, after) {
   }
 
   const run = () => void sweep().catch(report)
-  const first = setTimeout(run, MINUTE)
-  const timer = setInterval(run, 2 * MINUTE)
+  let timer
+  const first = setTimeout(() => {
+    run()
+    timer = setInterval(run, 10 * SECOND)
+  }, MINUTE)
 
   const stop = () => {
     if (signal.aborted) return
