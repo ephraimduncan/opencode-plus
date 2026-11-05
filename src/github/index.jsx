@@ -3,7 +3,7 @@ import { createStore } from "solid-js/store"
 import { address, current, parts } from "./format.js"
 import { css } from "./css.js"
 import { createItems } from "./model.js"
-import { FRESH, ItemView } from "./panel.jsx"
+import { ItemView } from "./panel.jsx"
 import { State } from "./parts.jsx"
 
 // The GitHub panel: a tab in the side region of the session for each pull request or issue that the user opens, the
@@ -23,7 +23,7 @@ export function github(ctx, { run, browse }) {
     if (!id || !session || ctx.layout.narrow()) return false
     if (section(href)) setViews(id, section(href))
     ctx.layout.open(key(id), session, { tab: "select" })
-    if (session.directory) void model.load(id, session.directory, FRESH)
+    if (session.directory) void model.load(id, session.directory)
 
     return true
   }

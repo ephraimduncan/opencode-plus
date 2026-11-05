@@ -39,7 +39,7 @@ The plugin works with OpenCode Desktop 2.2.5.
 - The card of an open issue has "Fix with the agent". It attaches the issue and its description to the prompt in the same way.
 - The `⋯` menu of the panel copies the link, the branch name, or the checkout command. It also marks a pull request ready for review or converts it to a draft, and closes or reopens a pull request or issue.
 - "Add to the prompt" in the `⋯` menu attaches the pull request or issue to the prompt, with no instruction.
-- The panel reads an open pull request or issue again each minute while it shows. While the checks run, or while GitHub does a check for conflicts, the panel reads the pull request again every five seconds. Thus the card changes when GitHub completes, and you do not have to refresh it.
+- The panel reads the pull request or issue again when the panel shows, and when the app window gets the focus. While the panel shows, it reads an open pull request or issue again each minute. While the checks run, or while GitHub does a check for conflicts, the panel reads the pull request again every five seconds. Thus the card changes when GitHub completes, and you do not have to refresh it.
 - The plugin reads and changes pull requests and issues with the `gh` command, in the folder of the session.
 
 ### Automatic archive
