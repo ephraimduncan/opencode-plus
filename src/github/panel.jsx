@@ -53,6 +53,19 @@ export function ItemView(props) {
   const url = () => item()?.url ?? props.address
   const name = `${ref.owner}/${ref.repo}#${ref.number}`
 
+  // An image of the item's GitHub host that the Markdown cannot load, such as an attachment of a private repository,
+  // loads through `gh`, which has the user's login.
+  const retryImage = (event) => {
+    const image = event.target
+    const src = image instanceof HTMLImageElement ? image.getAttribute("src") : undefined
+
+    if (!src || !image.closest('[data-component="markdown"]') || !URL.canParse(src)) return
+    if (new URL(src).origin !== ref.origin) return
+    void props.model.loadImage(src, props.session.directory).then((found) => {
+      if (found && image.getAttribute("src") === src) image.src = found
+    })
+  }
+
   const copy = (text) =>
     void ctx.system.copy(text).then(
       () => ctx.toast.show({ variant: "success", title: ctx.t("github.copied") }),
@@ -164,6 +177,7 @@ export function ItemView(props) {
     <div
       data-plus-github
       class="relative size-full min-w-0 overflow-hidden bg-v2-background-bg-base flex flex-col outline-none"
+      oncapture:error={retryImage}
     >
       <Bar>
         <State kind={ref.kind} state={item()?.state} />

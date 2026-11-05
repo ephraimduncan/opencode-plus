@@ -96,8 +96,7 @@ export function view(address) {
 }
 
 // The shell command that prints the diff of the file at `path` in the pull request at `address`, from its first hunk
-// on. It prints nothing when GitHub has no diff for the file, as for a binary file or a very large one. One file at a
-// time, as the shell keeps only the start of a long output.
+// on. It prints nothing when GitHub has no diff for the file, as for a binary file or a very large one.
 export function patch(address, path) {
   const { origin, owner, repo, number } = parts(address)
   const host = new URL(origin).host === "github.com" ? "" : ` --hostname ${quote(new URL(origin).host)}`
@@ -116,6 +115,26 @@ export function settings(address) {
 
 // The shell command that prints the address of the pull request of the folder's branch.
 export const current = `${GH} pr view --json url --jq .url 2>&1`
+
+// The shell command that prints in base64 what `gh` downloads from `url` with the user's login: the status line and the
+// headers of GitHub's last response, then its body. An attachment of a private repository loads only with a login.
+export function download(url) {
+  return `${GH} api --include ${quote(url)} 2>/dev/null | base64`
+}
+
+// The image in the output of `download`: its type and its bytes. Undefined unless GitHub answered with an image.
+export function picture(output) {
+  const text = atob(output)
+  const end = text.match(/\r?\n\r?\n/)
+
+  if (!end) return
+  const head = text.slice(0, end.index)
+  const type = head.match(/^content-type:\s*(image\/[^;\s]+)/im)?.[1]
+
+  if (!/^HTTP\/\S+ 200\b/.test(head) || !type) return
+
+  return { type, bytes: Uint8Array.from(text.slice(end.index + end[0].length), (char) => char.charCodeAt(0)) }
+}
 
 // The `gh` arguments of each change the panel makes, after the address. `method` is a merge method.
 const ACTIONS = {
