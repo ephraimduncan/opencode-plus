@@ -1,5 +1,5 @@
 import { createStore, reconcile } from "solid-js/store"
-import { act, failure, methods, parts, patch, read, settings, view } from "./format.js"
+import { act, download, failure, methods, parts, patch, picture, read, settings, view } from "./format.js"
 
 // The pull requests and issues that the panel shows, by address: the item as `gh` last read it, or why it could not,
 // the diff of each file of a pull request that the panel asks for, and what each repository lets the user merge with.
@@ -8,6 +8,7 @@ import { act, failure, methods, parts, patch, read, settings, view } from "./for
 export function createItems(run) {
   const [state, setState] = createStore({ items: {}, repos: {} })
   const reads = new Map()
+  const images = new Map()
 
   // Reads the item at `address` again, unless the last read is younger than `age` milliseconds. A new commit drops the
   // diffs that the panel read before it.
@@ -54,6 +55,22 @@ export function createItems(run) {
     )
   }
 
+  // Resolves to the address of a copy of the image at `url` that `gh` downloads with the user's login, for an image that
+  // the panel cannot load itself, such as an attachment of a private repository. Each image downloads once. Resolves to
+  // undefined when `gh` cannot download it, and a later call tries again.
+  const loadImage = (url, directory) => {
+    if (!images.has(url)) {
+      const task = attempt(directory, download(url), (output) => ({ picture: picture(output) })).then((result) => {
+        if (result.picture) return URL.createObjectURL(new Blob([result.picture.bytes], { type: result.picture.type }))
+        images.delete(url)
+      })
+
+      images.set(url, task)
+    }
+
+    return images.get(url)
+  }
+
   // Makes the change `action` to the item at `address`, then reads it again. Resolves to the error, if any.
   const change = async (address, directory, action, method) => {
     const { error } = await attempt(directory, act(address, action, method), () => ({}))
@@ -70,7 +87,7 @@ export function createItems(run) {
       .then(({ ok, output }) => (ok ? parse(output) : { error: failure(output) }))
       .catch((error) => ({ error: { reason: "other", detail: String(error?.message ?? error) } }))
 
-  return { state, load, loadPatch, loadRepo, change, repo }
+  return { state, load, loadPatch, loadRepo, loadImage, change, repo }
 }
 
 const repo = (address) => {

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { expect, test, vi } from "vitest"
-import { act, address, hunks, methods, patch, read, subject } from "../src/github/format.js"
+import { act, address, hunks, methods, patch, picture, read, subject } from "../src/github/format.js"
 import { highlight } from "../src/github/highlight.js"
 import { createItems } from "../src/github/model.js"
 
@@ -150,6 +150,22 @@ test("asks GitHub for the diff of one file", () => {
   expect(patch("https://github.example.com/team/app/pull/4", "a.js")).toContain(
     "gh api --hostname github.example.com 'repos/team/app/pulls/4/files?per_page=100'",
   )
+})
+
+// Catches the headers of GitHub's response left at the start of the image, the output of GNU `base64`, which breaks its
+// lines, read as no image, and an error page shown as an image: the 404 of an attachment that the login cannot see, or
+// a sign-in page.
+test.each([
+  ["HTTP/1.1 200 OK\nContent-Type: image/png\r\nContent-Length: 8\r\n\r\n", { type: "image/png" }],
+  ["HTTP/2.0 404 Not Found\r\nContent-Type: image/png\r\n\r\n", undefined],
+  ["HTTP/2.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n", undefined],
+])("reads the image that gh downloads: %j", (head, want) => {
+  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+  const output = Buffer.concat([Buffer.from(head), Buffer.from(png)])
+    .toString("base64")
+    .replace(/.{76}/g, "$&\n")
+
+  expect(picture(output)).toEqual(want && { ...want, bytes: new Uint8Array(png) })
 })
 
 // Catches line numbers that drift after a removed or an added line, a lost count of the lines between two hunks, and the
