@@ -1,8 +1,11 @@
-// Archives sessions that sat finished and untouched, like T3 Code's auto-settle, and brings an archived session back
-// when it gets a new message or run.
+// Archives sessions that sat finished and untouched, or whose pull request merged, like T3 Code's auto-settle, and
+// brings an archived session back when it gets a new message or run.
 //
 // This runs in the desktop app's main process rather than in a server part, because the server plugin API's
 // `session.update` ignores `archived` (OpenCode 2.2.5). The HTTP client here sends it.
+
+import * as pr from "./pr.js"
+import * as shell from "./shell.js"
 
 const MINUTE = 60 * 1000
 const PAGE = 200
@@ -12,28 +15,35 @@ const EVENTS = ["session.inbox.enqueued", "session.execution.started", "session.
 // stops it.
 const INSTANCE = Symbol.for("opencode-plus.archive")
 
-// Whether `session` is due for archive at `now`: its last run ended `after` ms ago with nothing new since. A run that
-// waits for a permission or a question still runs: its start is newer than its end. `key` names the session metadata
-// that holds when the session was last unarchived by hand.
-export function due(session, now, after, key) {
+// Whether `session` is due for archive at `now`: its last run ended `after` ms ago with nothing new since, or the pull
+// request of its branch merged at `merged` after its last run started. A run that waits for a permission or a question
+// still runs: its start is newer than its end. `key` names the session metadata that holds when the session was last
+// unarchived by hand.
+export function due(session, now, after, key, merged) {
   const { created, updated, busy, idle, archived } = session.time
 
   if (archived !== undefined || session.parentID) return false
 
   if (busy !== undefined && (idle === undefined || busy > idle)) return false
 
-  const last = Math.max(created, busy ?? 0, idle ?? 0)
-
-  // Unarchived by hand since its last run: stays until new activity, like un-settle in T3 Code.
-  if ((Number(session.metadata?.[key]) || 0) >= last) return false
-
   // Changed a moment ago, such as unarchived before its keep mark was written.
   if (now - updated < 2 * MINUTE) return false
+
+  const start = busy ?? created
+  const last = Math.max(created, busy ?? 0, idle ?? 0)
+  const kept = Number(session.metadata?.[key]) || 0
+
+  // Its pull request merged, so its work is done, like a T3 Code thread. A run that starts after the merge, such as a
+  // follow-up, or an unarchive by hand after the merge keeps it.
+  if (merged > Math.max(start, kept)) return true
+
+  // Unarchived by hand since its last run: stays until new activity, like un-settle in T3 Code.
+  if (kept >= last) return false
 
   return now - last >= after
 }
 
-// Archives due sessions every 10 minutes, and follows the server's events to bring sessions back. Returns the stop.
+// Archives due sessions every 2 minutes, and follows the server's events to bring sessions back. Returns the stop.
 export function archive(ctx, after) {
   const key = `${ctx.id}.keptAt`
   const started = Date.now()
@@ -53,6 +63,18 @@ export function archive(ctx, after) {
     }
   }
 
+  // When the pull request of the branch of `directory` merged, or undefined. The pull request is the one that the
+  // badge in the sidebar shows. A folder on its default branch has no lookup.
+  const merged = async (directory) => {
+    const { current, default: base } = (await ctx.client.vcs.get({ location: { directory } })).data.branch
+
+    if (!current || current === base) return
+    const listed = await shell.run(ctx.client, directory, pr.command(current))
+    const pull = listed.ok ? pr.latest(listed.output) : undefined
+
+    return pull?.state === "merged" ? Date.parse(pull.mergedAt) : undefined
+  }
+
   let sweeping = false
   const sweep = async () => {
     if (sweeping) return
@@ -60,9 +82,18 @@ export function archive(ctx, after) {
 
     try {
       const now = Date.now()
-      const list = (await roots()).filter((session) => due(session, now, after, key))
+      // The sessions of a folder share its branch, so they share one lookup. A folder that is gone, such as a removed
+      // worktree, has no pull request.
+      const lookups = new Map()
+      const lookup = (directory) => {
+        if (!lookups.has(directory)) lookups.set(directory, merged(directory).catch(() => undefined))
+        return lookups.get(directory)
+      }
+      // Only a session that a merge at this moment would archive needs the lookup.
+      const list = (await roots()).filter((session) => due(session, now, after, key, now))
 
       for (const session of list) {
+        if (!due(session, now, after, key, await lookup(session.location.directory))) continue
         await ctx.client.session.update({ sessionID: session.id, archived: true })
         ctx.log.write("info", `${ctx.id}: archived ${session.id} "${session.title ?? ""}"`)
       }
@@ -114,7 +145,7 @@ export function archive(ctx, after) {
 
   const run = () => void sweep().catch(report)
   const first = setTimeout(run, MINUTE)
-  const timer = setInterval(run, 10 * MINUTE)
+  const timer = setInterval(run, 2 * MINUTE)
 
   const stop = () => {
     if (signal.aborted) return

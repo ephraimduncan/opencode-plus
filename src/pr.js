@@ -84,11 +84,12 @@ ${Object.keys(icons)
 // is a branch named `branch`.
 export const command = (branch) =>
   "git remote get-url origin && GH_NO_UPDATE_NOTIFIER=1 gh pr list --state all --limit 20 " +
-  `--json number,title,url,state,isDraft,updatedAt,headRepositoryOwner --head ${quote(branch)} 2>/dev/null`
+  `--json number,title,url,state,isDraft,updatedAt,mergedAt,headRepositoryOwner --head ${quote(branch)} 2>/dev/null`
 
 // The pull request in the output of `command`: the most recently updated open one, else the most recently updated.
 // Only pull requests from the owner of `origin` count, so a fork's pull request from its own `main` does not show on
-// `main`. Its state is "open", "draft", "merged", or "closed". Undefined when the branch has none.
+// `main`. Its state is "open", "draft", "merged", or "closed", and `mergedAt` is GitHub's time of the merge, or null.
+// Undefined when the branch has none.
 export function latest(output) {
   const [remote, ...json] = output.trim().split(/\r?\n/)
   const owner = remote.match(/[:/]([^/:]+)\/[^/]+$/)?.[1].toLowerCase()
@@ -100,7 +101,7 @@ export function latest(output) {
   if (!pull) return
   const state = pull.state === "OPEN" && pull.isDraft ? "draft" : pull.state.toLowerCase()
 
-  return { number: pull.number, title: pull.title, url: pull.url, state }
+  return { number: pull.number, title: pull.title, url: pull.url, state, mergedAt: pull.mergedAt }
 }
 
 // Each project and branch's pull request: when its lookup ended, and what it found. A lookup under way has no `time`.

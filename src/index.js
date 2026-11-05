@@ -14,6 +14,7 @@ import * as links from "./links.js"
 import { newSessionRow } from "./location-menu.js"
 import * as pr from "./pr.js"
 import { settings } from "./settings.js"
+import * as shell from "./shell.js"
 import * as sidebar from "./sidebar.js"
 import * as timeline from "./timeline.js"
 import * as usage from "./usage.js"
@@ -90,30 +91,7 @@ function setup(ctx) {
         void start(name).catch(() => ctx.toast.show({ title: ctx.t("session.failed", { project: name }) })),
     })
 
-  // Runs `command` with the user's shell in `directory`, on the app's server. Returns whether it exited with 0, and all
-  // of its output.
-  const run = async (directory, command) => {
-    const location = { directory }
-    let { data: shell } = await ctx.client.shell.create({ location, command, timeout: MINUTE })
-
-    try {
-      while (shell.status === "running") {
-        await new Promise((resolve) => setTimeout(resolve, 100))
-        shell = (await ctx.client.shell.get({ id: shell.id, location })).data
-      }
-
-      let { data } = await ctx.client.shell.output({ id: shell.id, location })
-
-      // The first page holds only the start of a long output, such as an image. One read of the rest could cut a
-      // character in two, so the second read takes the output from its start.
-      if (data.cursor < data.size)
-        ({ data } = await ctx.client.shell.output({ id: shell.id, location, cursor: 0, limit: data.size }))
-
-      return { ok: shell.exit === 0, output: data.output }
-    } finally {
-      void ctx.client.shell.remove({ id: shell.id, location }).catch(() => undefined)
-    }
-  }
+  const run = (directory, command) => shell.run(ctx.client, directory, command)
 
   // The pull request of `branchName` in the project the sidebar names `name`, as GitHub's `gh` command finds it.
   // Undefined when the branch has none, or when `gh` cannot tell. A pass follows, to show what it finds.

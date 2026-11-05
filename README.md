@@ -45,8 +45,10 @@ The plugin works with OpenCode Desktop 2.2.5.
 ### Automatic archive
 
 - The plugin archives a session 12 hours after its last run stops, if no new activity occurs.
+- When the pull request of the branch of a session merges, the plugin archives the session in approximately two minutes. This pull request is the pull request that the badge in the sidebar shows.
+- If a run of the session starts after the merge, the merge does not archive the session. Thus, a session that you continue after the merge stays.
 - If an archived session gets a new message or a new run, the plugin unarchives it.
-- If you unarchive a session yourself, the plugin keeps the session until it has new activity.
+- If you unarchive a session yourself, the plugin keeps the session until it has new activity or until its pull request merges.
 
 ### Conversation and chat input
 
@@ -165,7 +167,7 @@ To change the behavior of the plugin, use the `options` object of the plugin ent
 
 | Option | Default | Result |
 | --- | --- | --- |
-| `archiveAfterHours` | `12` | The number of hours after the last run stops before the plugin archives a session. `0` stops automatic archive and unarchive. |
+| `archiveAfterHours` | `12` | The number of hours after the last run stops before the plugin archives a session. `0` stops automatic archive and unarchive, also the archive after a merge. |
 | `hideAgent` | `"build"` | The agent for which the agent dropdown does not show. `false` always shows the dropdown. |
 | `responseLabel` | `"Response"` | The text on the divider above the last text of an answer. `""` shows the divider with no text. |
 | `lowercaseVariants` | `true` | Shows reasoning levels in lowercase. `false` keeps the capital first letter that the app shows. |
@@ -199,6 +201,9 @@ Open the command palette and type the name of a command:
 - The GitHub panel shows a maximum of 100 changed files. The "Files" tab has a link to the remaining files on GitHub.
 - The browser pane keeps only cookies. A site that keeps its login in local storage, for example some apps on Firebase, does not stay logged in after a restart.
 - Automatic archive operates only while OpenCode Desktop is open. When you open the app again, the plugin archives the due sessions in approximately one minute.
+- The archive after a merge operates only if the `gh` command is installed and has access to GitHub.
+- The plugin finds the pull request from the current branch of the folder of the session. If sessions share a folder, for example the project folder, a merge archives each of these sessions that has no run after the merge.
+- A session on the default branch, for example `main`, or in a removed worktree, gets no archive after a merge.
 - A workflow runs in the OpenCode server. If OpenCode Desktop closes, the workflow stops.
 
 ## Remove
