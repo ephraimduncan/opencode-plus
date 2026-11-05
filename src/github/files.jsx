@@ -2,6 +2,7 @@ import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
 import { More } from "../ui.jsx"
 import { hunks } from "./format.js"
+import { highlight } from "./highlight.js"
 import { Glyph, Label, Lines } from "./parts.jsx"
 
 // The Files view: the count of files, commits and lines as Linear shows it, a filter, then a row for each file as a
@@ -130,7 +131,7 @@ function File(props) {
         <div role="region" data-slot="accordion-content" data-expanded="">
           <Switch>
             <Match when={props.patch?.text}>
-              <Diff text={props.patch.text} />
+              <Diff text={props.patch.text} path={props.file.path} />
             </Match>
             <Match when={props.patch?.error}>
               <div class="px-3 py-2 text-12-regular text-v2-state-fg-danger">
@@ -153,11 +154,12 @@ function File(props) {
   )
 }
 
-// A file's diff in the colors of the app's diff view: a row for each line, with its numbers before and after, and a
-// band before each hunk that says how many lines it skips.
+// A file's diff in the colors of the app's diff view: a row for each line, with its numbers before and after and its
+// code highlighted as the app highlights code, and a band before each hunk that says how many lines it skips.
 function Diff(props) {
   const ctx = usePlugin()
   const list = createMemo(() => hunks(props.text))
+  const runs = createMemo(() => highlight(list(), props.path))
 
   return (
     <div data-slot="diff" data-component="apply-patch-file-diff">
@@ -178,7 +180,11 @@ function Diff(props) {
                     <span data-slot="diff-number">{line.before}</span>
                     <span data-slot="diff-number">{line.after}</span>
                     <span data-slot="diff-sign">{SIGNS[line.type]}</span>
-                    <span data-slot="diff-code">{line.text}</span>
+                    <span data-slot="diff-code">
+                      <Show when={runs().get(line)} fallback={line.text}>
+                        {(found) => <For each={found()}>{(run) => <span style={run.style}>{run.text}</span>}</For>}
+                      </Show>
+                    </span>
                   </div>
                 )}
               </For>

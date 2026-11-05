@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { expect, test, vi } from "vitest"
 import { act, address, hunks, methods, patch, read, subject } from "../src/github/format.js"
+import { highlight } from "../src/github/highlight.js"
 import { createItems } from "../src/github/model.js"
 
 // What `gh pr view` and `gh issue view` print with the fields the panel asks for: a merged pull request of T3 Code, an
@@ -189,6 +190,31 @@ test("reads the hunks of a diff, with the numbers of each line", () => {
       ],
     },
   ])
+})
+
+// Catches runs given to the wrong line, an added line that a removed line turns into a comment because the two files
+// are highlighted as one, and colors that name no variable of the app's theme.
+test("highlights the file before and the file after a change apart", () => {
+  const list = hunks(["@@ -1,3 +1,3 @@", " const a = 1", "-/* old", '+let b = "x"', " */", ""].join("\n"))
+  const runs = highlight(list, "src/a.ts")
+  const [, removed, added] = list[0].lines
+  const text = (line) => runs.get(line).map((run) => run.text)
+  const style = (line, text) => runs.get(line).find((run) => run.text.trim() === text)?.style
+
+  expect(text(added).join("")).toBe('let b = "x"')
+  expect(style(added, "let")).toBe("color:var(--syntax-keyword)")
+  expect(style(added, '"x"')).toBe("color:var(--syntax-string)")
+  expect(style(removed, "/* old")).toBe("color:var(--syntax-comment)")
+})
+
+// Catches a file with no extension that is not highlighted by its name, and a file of an unknown language that breaks
+// the diff instead of showing plain text.
+test.each([
+  ["Dockerfile", true],
+  ["docs/LICENSE", false],
+  ["data.unknown", false],
+])("highlights %s: %s", (path, want) => {
+  expect(highlight(hunks("@@ -0,0 +1 @@\n+FROM node\n"), path).size > 0).toBe(want)
 })
 
 // Catches a prompt that sends the agent to fix checks that passed, or that leaves out where the pull request is.
