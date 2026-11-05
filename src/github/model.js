@@ -44,12 +44,12 @@ export function createItems(run) {
     )
   }
 
-  // Reads the merge methods of the repository of `address`, once.
+  // Reads the merge methods of the repository of `address`, unless the panel has them or reads them now.
   const loadRepo = (address, directory) => {
     const key = repo(address)
 
-    if (state.repos[key]) return
-    setState("repos", key, { busy: true })
+    if (state.repos[key] && !state.repos[key].error) return
+    setState("repos", key, { busy: true, error: undefined })
     void attempt(directory, settings(address), (output) => methods(JSON.parse(output.slice(output.indexOf("{"))))).then(
       (result) => setState("repos", key, { busy: false, ...result }),
     )

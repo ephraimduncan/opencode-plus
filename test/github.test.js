@@ -132,10 +132,14 @@ test("lists the allowed merge methods, the user's usual one first", () => {
   expect(methods({ ...settings, viewerPermission: "ADMIN" })).toMatchObject({ write: true, admin: true })
 })
 
-// Catches a merge before the checks end that GitHub refuses: when a rule requires the checks, only an admin can merge.
+// Catches a merge before the checks end that GitHub refuses: when a rule requires the checks, when the branch is out of
+// date, or before GitHub knows, only an admin can merge.
 test.each([
   ["BLOCKED", true],
+  ["BEHIND", true],
+  ["UNKNOWN", true],
   ["UNSTABLE", false],
+  ["CLEAN", false],
 ])("a pull request with running checks and the merge state %s is blocked: %s", (mergeStateStatus, want) => {
   const fields = { reviewDecision: "", mergeStateStatus, statusCheckRollup: [run("lint", null, "QUEUED")] }
 
@@ -290,6 +294,27 @@ test("reads the item again after a change, and drops the diff of an older commit
   ])
   expect(items.state.items[OPEN].item.state).toBe("draft")
   expect(items.state.items[OPEN].patches).toBeUndefined()
+})
+
+// Catches merge buttons that stay gone after one failed read of the repository, and a read of the repository on each
+// read of the pull request.
+test("reads the merge methods of a repository again only after a failed read", async () => {
+  const outputs = [
+    { ok: false, output: "error connecting to api.github.com" },
+    { ok: true, output: JSON.stringify({ squashMergeAllowed: true, viewerPermission: "WRITE" }) },
+  ]
+  const run = vi.fn(async () => outputs.shift())
+  const items = createItems(run)
+  const key = "https://github.com/cli/cli"
+
+  items.loadRepo(OPEN, "/repo")
+  await vi.waitFor(() => expect(items.state.repos[key].error).toBeDefined())
+  items.loadRepo(OPEN, "/repo")
+  await vi.waitFor(() => expect(items.state.repos[key]).toMatchObject({ methods: ["squash"], write: true }))
+  items.loadRepo(OPEN, "/repo")
+
+  expect(items.state.repos[key].error).toBeUndefined()
+  expect(run).toHaveBeenCalledTimes(2)
 })
 
 // Catches a failed read that shows as a pull request with no data, and a missing `gh` shown as a GitHub error.

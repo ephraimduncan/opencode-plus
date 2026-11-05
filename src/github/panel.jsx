@@ -10,12 +10,11 @@ import { Timeline, TimelineNote } from "./timeline.jsx"
 const SECOND = 1000
 const MINUTE = 60 * SECOND
 
-// A read younger than this stands when the panel shows again.
-export const FRESH = 15 * SECOND
-
 // The panel of one pull request or issue, with T3 Code's structure in the app's components: the browser panel's
 // toolbar, a header with the title, the author and the branches, a tab bar with the app's segmented control, then the
-// Summary, Timeline or Files view. While it shows, the panel reads an open item again each minute.
+// Summary, Timeline or Files view. The panel reads the item again when it shows and when the app's window gets the
+// focus. While it shows, it reads an open item again each minute, and every few seconds while its checks run or GitHub
+// has not found whether it can merge.
 //
 // The status card of the summary leads to the next step: merge, mark ready, update the branch, or hand the item to the
 // agent, which attaches it to the prompt with an instruction that the user can change before they send it.
@@ -29,16 +28,26 @@ export function ItemView(props) {
   const view = () => (props.view() === "files" && !pull() ? "summary" : (props.view() ?? "summary"))
   const [acting, setActing] = createSignal()
   const [newest, setNewest] = createSignal(false)
+  const settling = () => item()?.gate === "unknown" || item()?.checks?.some((check) => check.result === "pending")
 
-  const load = (age) => void props.model.load(props.address, props.session.directory, age)
+  // A read of a pull request also tries again to read the merge methods of its repository, if that read failed.
+  const load = (age) => {
+    void props.model.load(props.address, props.session.directory, age)
+    if (pull() && open()) props.model.loadRepo(props.address, props.session.directory)
+  }
 
   createKeyed(props.visible, () => {
-    load(FRESH)
+    const refresh = () => load(0)
     const timer = setInterval(() => {
-      if (open()) load(MINUTE)
-    }, 10 * SECOND)
+      if (open()) load(settling() ? 0 : MINUTE)
+    }, 5 * SECOND)
 
-    onCleanup(() => clearInterval(timer))
+    refresh()
+    window.addEventListener("focus", refresh)
+    onCleanup(() => {
+      clearInterval(timer)
+      window.removeEventListener("focus", refresh)
+    })
   })
 
   createKeyed(

@@ -225,7 +225,9 @@ function pull(json) {
     body: text(json.body),
     state: json.state === "OPEN" && json.isDraft ? "draft" : json.state.toLowerCase(),
     gate: gate(json, checks),
-    blocked: json.mergeStateStatus === "BLOCKED",
+    // GitHub merges at once only in these states. In the others, such as when a rule of the repository requires the
+    // checks, it waits, and only an admin can merge before then.
+    blocked: !["CLEAN", "HAS_HOOKS", "UNSTABLE"].includes(json.mergeStateStatus),
     author: login(json.author),
     base: json.baseRefName,
     branch: json.headRefName,

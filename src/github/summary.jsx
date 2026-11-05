@@ -37,14 +37,15 @@ export function PullSummary(props) {
   const methods = () => props.repo?.methods ?? []
   const merger = () => !!props.repo?.write && methods().length > 0
   const busy = (action) => props.acting === action
+  // While the checks run and GitHub does not wait for them, `gh pr merge --auto` merges at once.
+  const waits = () => props.item.gate !== "pending" || props.item.blocked
   const offers = () =>
     [
       gate().merge && merger() && "merge",
       gate().hand && "hand",
       gate().ready && "ready",
       gate().update && "update",
-      gate().auto && merger() && !props.item.autoMerge && "auto",
-      // Before the required checks pass, GitHub merges only for an admin.
+      gate().auto && merger() && !props.item.autoMerge && waits() && "auto",
       gate().now && merger() && (!props.item.blocked || props.repo.admin) && "now",
       gate().reopen && "reopen",
     ].filter(Boolean)
@@ -59,8 +60,10 @@ export function PullSummary(props) {
   }
 
   const description = () => {
-    const key = props.item.gate === "merged" && !props.item.mergedBy ? "merged.anonymous" : props.item.gate
-    const text = ctx.t(`github.gate.${key}.detail`, { base: props.item.base, user: props.item.mergedBy ?? "" })
+    const text = ctx.t(`github.gate.${detail(props.item)}.detail`, {
+      base: props.item.base,
+      user: props.item.mergedBy ?? "",
+    })
 
     return props.item.autoMerge ? `${text} ${ctx.t(`github.auto.${props.item.autoMerge}`)}` : text
   }
@@ -76,29 +79,14 @@ export function PullSummary(props) {
         <Show when={offers().length > 0}>
           <div class="flex flex-wrap items-center gap-2 pt-1">
             <Show when={offers().includes("merge")}>
-              <span class="flex items-center">
-                <ctx.ui.Button
-                  variant="contrast"
-                  size="small"
-                  busy={busy("merge")}
-                  onClick={() => void props.merge(methods()[0])}
-                >
-                  <Label glyph="merge">{ctx.t(`github.method.${methods()[0]}`)}</Label>
-                </ctx.ui.Button>
-                <Show when={methods().length > 1}>
-                  <ctx.ui.Menu
-                    label={ctx.t("github.merge.other")}
-                    icon="chevron-down"
-                    placement="bottom-start"
-                    items={methods()
-                      .slice(1)
-                      .map((method) => ({
-                        label: ctx.t(`github.method.${method}`),
-                        onSelect: () => void props.merge(method),
-                      }))}
-                  />
-                </Show>
-              </span>
+              <Merge
+                variant="contrast"
+                methods={methods()}
+                busy={busy("merge")}
+                merge={(method) => void props.merge(method)}
+              >
+                {ctx.t(`github.method.${methods()[0]}`)}
+              </Merge>
             </Show>
             <Show when={offers().includes("hand")}>
               <ctx.ui.Button variant="contrast" size="small" onClick={() => props.hand(gate().hand)}>
@@ -125,37 +113,25 @@ export function PullSummary(props) {
                 <Label glyph="sync">{ctx.t("github.update")}</Label>
               </ctx.ui.Button>
             </Show>
-            <Show when={offers().includes("auto") || offers().includes("now")}>
-              <span class="flex items-center">
-                <Show when={offers().includes("auto")}>
-                  <ctx.ui.Button
-                    variant="neutral"
-                    size="small"
-                    busy={busy("auto")}
-                    onClick={() => void props.merge(methods()[0], "auto")}
-                  >
-                    <Label glyph="clock">{ctx.t("github.merge.auto")}</Label>
-                  </ctx.ui.Button>
-                </Show>
-                <Show when={offers().includes("now")}>
-                  <ctx.ui.Menu
-                    label={ctx.t("github.merge.now")}
-                    trigger={offers().includes("auto") ? "icon" : "button"}
-                    icon="chevron-down"
-                    placement="bottom-start"
-                    items={[
-                      {
-                        type: "group",
-                        label: ctx.t("github.merge.now"),
-                        items: methods().map((method) => ({
-                          label: ctx.t(`github.method.${method}`),
-                          onSelect: () => void props.merge(method, "now"),
-                        })),
-                      },
-                    ]}
-                  />
-                </Show>
-              </span>
+            <Show when={offers().includes("auto")}>
+              <ctx.ui.Button
+                variant="neutral"
+                size="small"
+                busy={busy("auto")}
+                onClick={() => void props.merge(methods()[0], "auto")}
+              >
+                <Label glyph="clock">{ctx.t("github.merge.auto")}</Label>
+              </ctx.ui.Button>
+            </Show>
+            <Show when={offers().includes("now")}>
+              <Merge
+                variant="neutral"
+                methods={methods()}
+                busy={busy("merge") || busy("admin")}
+                merge={(method) => void props.merge(method, "now")}
+              >
+                {ctx.t("github.merge.now")}
+              </Merge>
             </Show>
             <Show when={offers().includes("reopen")}>
               <ctx.ui.Button
@@ -320,6 +296,43 @@ function Card(props) {
       <div data-slot="card-description">{props.description}</div>
       {props.children}
     </div>
+  )
+}
+
+// The key of the card's description for the merge state of `item`.
+function detail(item) {
+  if (item.gate === "merged" && !item.mergedBy) return "merged.anonymous"
+  if (item.gate === "pending" && !item.blocked) return "pending.optional"
+
+  return item.gate
+}
+
+// A button that merges with the first of `methods`, and a menu of the others.
+function Merge(props) {
+  const ctx = usePlugin()
+
+  return (
+    <span class="flex items-center">
+      <ctx.ui.Button
+        variant={props.variant}
+        size="small"
+        busy={props.busy}
+        onClick={() => props.merge(props.methods[0])}
+      >
+        <Label glyph="merge">{props.children}</Label>
+      </ctx.ui.Button>
+      <Show when={props.methods.length > 1}>
+        <ctx.ui.Menu
+          label={ctx.t("github.merge.other")}
+          icon="chevron-down"
+          placement="bottom-start"
+          items={props.methods.slice(1).map((method) => ({
+            label: ctx.t(`github.method.${method}`),
+            onSelect: () => props.merge(method),
+          }))}
+        />
+      </Show>
+    </span>
   )
 }
 
