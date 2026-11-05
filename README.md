@@ -25,12 +25,16 @@ The plugin works with OpenCode Desktop 2.2.5.
 ### GitHub panel
 
 - A click on a link to a GitHub pull request or issue opens the GitHub panel at the side of the conversation, in a tab for that pull request or issue. Links to a page of a pull request, for example its files or a comment, also open the panel.
-- The panel shows the title, the state, the author, and the branches. The "Overview" tab shows a status card, the labels, the checks, the reviewers, and the description.
-- The status card tells you if the pull request can merge. If it cannot merge, the card tells you why: for example merge conflicts, failed checks, or a review that requests changes.
-- The "Activity" tab shows the comments, the reviews, the commits, and the merge, oldest first. The "Files" tab shows the changed files. A click on a file shows its diff.
+- The header of the panel shows the title, the state, the author, the base and head branches, and the size of the change. A button in the header copies the `gh pr checkout` command.
+- The "Summary" tab starts with a status card. The status card tells you if the pull request can merge. If it cannot merge, the card tells you why: for example merge conflicts, failed checks, or a review that requests changes.
+- Under the status card, rows show the reviewers, the assignees, the labels, the branch, and the milestone. A ring around the picture of a reviewer shows the verdict of that reviewer. The "Branch" row tells you if the branch is up to date with the base branch, behind it, or in conflict with it.
+- Then the "Summary" tab shows the full description, the checks, and the comments and reviews. The failed checks and the running checks show first.
+- The "Timeline" tab shows each event on a vertical line: the start of the pull request, the commits, the comments and reviews as cards, and the merge. A button changes the order from "Oldest first" to "Newest first".
+- The "Files" tab shows the changed files and the number of commits. A click on a file shows its diff, with line numbers. "Expand all" opens all the files. If the pull request changes more than six files, you can filter the files by name.
 - If you can write to the repository, the card has a merge button for the merge method that you use on GitHub. The other permitted methods are in the menu next to the button. The plugin asks before it merges.
 - When the checks run or a review is necessary, "Merge when ready" turns on auto-merge. When the branch is out of date, "Update branch" adds the latest commits of the base branch to it.
 - When the pull request has merge conflicts, failed checks, or a review that requests changes, the card has a button for the agent. For example, "Resolve conflicts" attaches the pull request to the prompt and writes an instruction in an empty prompt. You can change the instruction before you send it.
+- A failed check has a "Fix" button, and a review that requests changes has an "Address" button. These buttons attach the pull request to the prompt with an instruction for that check or that review.
 - The card of an open issue has "Fix with the agent". It attaches the issue and its description to the prompt in the same way.
 - The `⋯` menu of the panel copies the link, the branch name, or the checkout command. It also marks a pull request ready for review or converts it to a draft, and closes or reopens a pull request or issue.
 - "Add to the prompt" in the `⋯` menu attaches the pull request or issue to the prompt, with no instruction.

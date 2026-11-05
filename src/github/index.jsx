@@ -137,8 +137,6 @@ function section(href) {
 export const strings = {
   "github.command": "Show the pull request of this branch",
   "github.command.none": "This branch has no pull request",
-  "github.loading.pull": "Loading the pull request…",
-  "github.loading.issue": "Loading the issue…",
   "github.refresh": "Refresh",
   "github.open": "Open on GitHub",
   "github.external": "Open in your browser",

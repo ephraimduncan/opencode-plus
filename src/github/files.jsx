@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { usePlugin } from "@opencode/plugin/gui"
 import { More } from "../ui.jsx"
 import { hunks } from "./format.js"
-import { Glyph, Lines } from "./parts.jsx"
+import { Glyph, Label, Lines } from "./parts.jsx"
 
 // The Files view: the count of files, commits and lines as Linear shows it, a filter, then a row for each file as a
 // turn's changes in the timeline. A row opens to the file's diff, which loads when it first opens.
@@ -45,7 +45,9 @@ export function Files(props) {
           disabled={shown().length === 0}
           onClick={() => shown().forEach((file) => toggle(file.path, !all()))}
         >
-          {ctx.t(all() ? "github.files.collapse" : "github.files.expand")}
+          <Label glyph={all() ? "fold" : "unfold"}>
+            {ctx.t(all() ? "github.files.collapse" : "github.files.expand")}
+          </Label>
         </ctx.ui.Button>
       </div>
       <Show when={props.item.files.length > 6}>
