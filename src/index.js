@@ -1,4 +1,4 @@
-import { Command, Plugin, Slot, Store, Style, createKeyed } from "@opencode/plugin/gui"
+import { Command, Ipc, Plugin, Slot, Store, Style, createKeyed } from "@opencode/plugin/gui"
 import { Browser } from "@opencode/plugin/gui/browser"
 import { Schema } from "effect"
 // A window gets an inert module. Only the main process uses it.
@@ -30,6 +30,9 @@ const NEW_TAB = "tab.new"
 
 // The desktop app's own server.
 const SIDECAR = "sidecar"
+
+// The automatic archive in the main process, for the windows: `sweep` archives the due sessions at once.
+const Archive = (id) => Ipc.define({ id: `${id}.archive`, methods: { sweep: {} } })
 
 // Each window: restyles the sidebar, the chat input, and the conversation. The app has no plugin API for these, so a
 // pass over the page applies every change after each change to the page.
@@ -268,8 +271,13 @@ function setup(ctx) {
   // Opens `url` in the browser pane, else in the system browser.
   const visit = (url) => browse(url) || void ctx.system.openExternal(url)
 
+  // A merge or a close in the GitHub panel can end the work of sessions. Like T3 Code, they do not wait for the next
+  // sweep.
+  const archiver = options.archiveAfterHours > 0 ? ctx.main(Archive(ctx.id)) : undefined
+  const changed = () => void archiver?.sweep().catch(() => undefined)
+
   // Opens the pull request or issue that a link names in the side region of the session, and returns whether it did.
-  const openGitHub = options.github ? github(ctx, { run, browse: visit }) : () => false
+  const openGitHub = options.github ? github(ctx, { run, browse: visit, changed }) : () => false
 
   const sync = () => {
     sidebar.shelve(shelf.value.archivedOpen)
@@ -411,7 +419,13 @@ function main(ctx) {
 
   ctx.onCleanup(cookies.keep(ctx, { app, safeStorage, webContents }))
 
-  if (archiveAfterHours > 0) return archive(ctx, archiveAfterHours * HOUR)
+  if (archiveAfterHours <= 0) return
+
+  const archiver = archive(ctx, archiveAfterHours * HOUR)
+
+  ctx.provide(Archive(ctx.id), { sweep: archiver.sweep })
+
+  return archiver.stop
 }
 
 export default Plugin.define({

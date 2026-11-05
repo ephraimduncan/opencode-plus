@@ -45,12 +45,12 @@ The plugin works with OpenCode Desktop 2.2.5.
 ### Automatic archive
 
 - The plugin archives a session 12 hours after its last run stops, if no new activity occurs.
-- When the pull request of the branch of a session merges, the plugin archives the session in approximately 10 seconds. This pull request is the pull request that the badge in the sidebar shows.
-- If the agent merges the pull request in its run, the plugin archives the session approximately 30 seconds after the run stops.
-- The plugin asks GitHub about the pull request every 10 seconds. If nothing changed, GitHub does not count the request against your rate limit.
-- If a run of the session starts after the merge, the merge does not archive the session. Thus, a session that you continue after the merge stays.
+- When the pull request of the branch of a session merges or closes, the plugin archives the session. These rules are the same as the rules of auto-settle in T3 Code. The pull request is the pull request that the badge in the sidebar shows.
+- If you merge or close the pull request in the GitHub panel, the plugin archives the session at once. If the agent merges or closes it, the plugin archives the session when the run stops.
+- If you merge or close the pull request on GitHub, the plugin archives the session in approximately 10 seconds. The plugin asks GitHub about the pull request every 10 seconds. If nothing changed, GitHub does not count the request against your rate limit.
+- If you send a message to the session after the merge or the close, the session stays. A run that the agent starts itself, for example after a workflow, does not keep the session.
 - If an archived session gets a new message or a new run, the plugin unarchives it.
-- If you unarchive a session yourself, the plugin keeps the session until it has new activity or until its pull request merges.
+- If you unarchive a session yourself, the plugin keeps the session until it has new activity.
 
 ### Conversation and chat input
 
@@ -169,7 +169,7 @@ To change the behavior of the plugin, use the `options` object of the plugin ent
 
 | Option | Default | Result |
 | --- | --- | --- |
-| `archiveAfterHours` | `12` | The number of hours after the last run stops before the plugin archives a session. `0` stops automatic archive and unarchive, also the archive after a merge. |
+| `archiveAfterHours` | `12` | The number of hours after the last run stops before the plugin archives a session. `0` stops automatic archive and unarchive, also the archive after a merge or a close. |
 | `hideAgent` | `"build"` | The agent for which the agent dropdown does not show. `false` always shows the dropdown. |
 | `responseLabel` | `"Response"` | The text on the divider above the last text of an answer. `""` shows the divider with no text. |
 | `lowercaseVariants` | `true` | Shows reasoning levels in lowercase. `false` keeps the capital first letter that the app shows. |
@@ -203,9 +203,9 @@ Open the command palette and type the name of a command:
 - The GitHub panel shows a maximum of 100 changed files. The "Files" tab has a link to the remaining files on GitHub.
 - The browser pane keeps only cookies. A site that keeps its login in local storage, for example some apps on Firebase, does not stay logged in after a restart.
 - Automatic archive operates only while OpenCode Desktop is open. When you open the app again, the plugin archives the due sessions in approximately one minute.
-- The archive after a merge operates only if the `gh` command is installed and has access to GitHub.
-- The plugin finds the pull request from the current branch of the folder of the session. If sessions share a folder, for example the project folder, a merge archives each of these sessions that has no run after the merge.
-- A session on the default branch, for example `main`, or in a removed worktree, gets no archive after a merge.
+- The archive after a merge or a close operates only if the `gh` command is installed and has access to GitHub.
+- The plugin finds the pull request from the current branch of the folder of the session. If sessions share a folder, for example the project folder, a merge archives each of these sessions that got no message from you after the merge.
+- A session on the default branch, for example `main`, or in a removed worktree, gets no archive after a merge or a close.
 - A workflow runs in the OpenCode server. If OpenCode Desktop closes, the workflow stops.
 
 ## Remove

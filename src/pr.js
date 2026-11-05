@@ -84,7 +84,7 @@ ${Object.keys(icons)
 // is a branch named `branch`.
 export const command = (branch) =>
   "git remote get-url origin && GH_NO_UPDATE_NOTIFIER=1 gh pr list --state all --limit 20 " +
-  `--json number,title,url,state,isDraft,updatedAt,mergedAt,headRepositoryOwner --head ${quote(branch)} 2>/dev/null`
+  `--json number,title,url,state,isDraft,updatedAt,headRepositoryOwner --head ${quote(branch)} 2>/dev/null`
 
 // The pull request in the output of `command`. Only pull requests from the owner of `origin` count, so a fork's pull
 // request from its own `main` does not show on `main`. Undefined when the branch has none.
@@ -100,7 +100,6 @@ export function latest(output) {
         title: pull.title,
         url: pull.url,
         state: pull.state === "OPEN" && pull.isDraft ? "draft" : pull.state.toLowerCase(),
-        mergedAt: pull.mergedAt,
         updatedAt: pull.updatedAt,
       })),
   )
@@ -118,8 +117,8 @@ export const ask = (login, branch, etag) =>
   quote(`repos/{owner}/{repo}/pulls?state=all&per_page=20&head=${login}:${encodeURIComponent(branch)}`) +
   " 2>/dev/null"
 
-// GitHub's answer to `ask`: its ETag, and the pull request as `latest` gives it. Undefined when nothing changed, or when
-// the request was not successful.
+// GitHub's answer to `ask`: its ETag, and the pull request as `latest` gives it, with `closedAt`, GitHub's time of its
+// merge or close, or null. Undefined when nothing changed, or when the request was not successful.
 export function answer(output) {
   const [head, ...body] = output.split(/\r?\n\r?\n/)
 
@@ -131,7 +130,7 @@ export function answer(output) {
       title: pull.title,
       url: pull.html_url,
       state: pull.merged_at ? "merged" : pull.state === "open" && pull.draft ? "draft" : pull.state,
-      mergedAt: pull.merged_at,
+      closedAt: pull.closed_at,
       updatedAt: pull.updated_at,
     })),
   )
@@ -140,7 +139,7 @@ export function answer(output) {
 }
 
 // The pull request of a branch: the most recently updated open one, else the most recently updated. Its state is
-// "open", "draft", "merged", or "closed", and `mergedAt` is GitHub's time of the merge, or null.
+// "open", "draft", "merged", or "closed".
 const pick = (list) => {
   const sorted = list.toSorted((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
 

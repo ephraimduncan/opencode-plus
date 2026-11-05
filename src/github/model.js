@@ -4,8 +4,8 @@ import { act, download, failure, methods, parts, patch, picture, read, settings,
 // The pull requests and issues that the panel shows, by address: the item as `gh` last read it, or why it could not,
 // the diff of each file of a pull request that the panel asks for, and what each repository lets the user merge with.
 // `run(directory, command)` runs a shell command in `directory` and resolves to whether it exited with 0, and its
-// output. One read of each item runs at a time.
-export function createItems(run) {
+// output. `changed()` runs after each change that is successful. One read of each item runs at a time.
+export function createItems(run, changed = () => {}) {
   const [state, setState] = createStore({ items: {}, repos: {} })
   const reads = new Map()
   const images = new Map()
@@ -75,6 +75,7 @@ export function createItems(run) {
   const change = async (address, directory, action, method) => {
     const { error } = await attempt(directory, act(address, action, method), () => ({}))
 
+    if (!error) changed()
     await reads.get(address)
     await load(address, directory)
 

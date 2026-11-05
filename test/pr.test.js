@@ -23,7 +23,6 @@ const output = (remote, pulls) => `${remote}\n${JSON.stringify(pulls)}\n`
 const pull = (number, state, updatedAt, login = "ephraimduncan", isDraft = false) => ({
   headRepositoryOwner: { id: "MDQ6VXNlcjU1MTQzNzk5", name: "Ephraim Duncan", login },
   isDraft,
-  mergedAt: state === "MERGED" ? updatedAt : null,
   number,
   state,
   title: `PR ${number}`,
@@ -58,7 +57,6 @@ test("picks the open pull request of the remote's owner", () => {
     title: "PR 7",
     url: "https://github.com/ephraimduncan/opencode-plus/pull/7",
     state: "open",
-    mergedAt: null,
     updatedAt: "2026-11-01T10:00:00Z",
   })
   const draft = pull(3, "OPEN", "2026-11-01T10:00:00Z", "ephraimduncan", true)
@@ -66,20 +64,11 @@ test("picks the open pull request of the remote's owner", () => {
   expect(latest(output(remote, [pull(12, "OPEN", "2026-11-03T12:00:00Z", "someone-else")]))).toBeUndefined()
 })
 
-// Catches a merged pull request without its time: the archive of its sessions needs it.
-test("gives the time of the merge", () => {
-  const merged = pull(9, "MERGED", "2026-11-03T10:00:00Z")
-
-  expect(latest(output("git@github.com:ephraimduncan/opencode-plus.git", [merged]))).toMatchObject({
-    state: "merged",
-    mergedAt: "2026-11-03T10:00:00Z",
-  })
-})
-
 // What `gh api --include` printed for the pull requests of a branch (2026-11-05), without the headers of the token.
 const included = (name) => readFileSync(join(import.meta.dirname, "fixtures/github", `${name}.txt`), "utf8")
 
-// Catches an answer that loses the merge or the ETag: without the ETag, each request counts against the rate limit.
+// Catches an answer that loses the merge, its time, or the ETag: without the ETag, each request counts against the rate
+// limit.
 test("reads the merged pull request and the ETag from GitHub's answer", () => {
   expect(answer(included("pulls-merged"))).toEqual({
     etag: 'W/"ce976e923f5356df840b0e52c3e19dec7630c66f392b25a121ec6766363e3760"',
@@ -88,9 +77,21 @@ test("reads the merged pull request and the ETag from GitHub's answer", () => {
       title: "feat: archive a session when its pull request merges",
       url: "https://github.com/ephraimduncan/opencode-plus/pull/17",
       state: "merged",
-      mergedAt: "2026-11-05T11:40:25Z",
+      closedAt: "2026-11-05T11:40:25Z",
       updatedAt: "2026-11-05T11:40:25Z",
     },
+  })
+})
+
+// Catches a closed pull request read as open or merged: a close also ends the work of its sessions.
+test("reads a pull request that closed without a merge", () => {
+  const [head, body] = included("pulls-merged").split("\r\n\r\n")
+  const [merged] = JSON.parse(body)
+  const closed = { ...merged, merged_at: null, merge_commit_sha: null }
+
+  expect(answer(`${head}\r\n\r\n${JSON.stringify([closed])}`).pull).toMatchObject({
+    state: "closed",
+    closedAt: "2026-11-05T11:40:25Z",
   })
 })
 

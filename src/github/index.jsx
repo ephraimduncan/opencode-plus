@@ -8,11 +8,12 @@ import { State } from "./parts.jsx"
 
 // The GitHub panel: a tab in the side region of the session for each pull request or issue that the user opens, the
 // command that opens the pull request of the session's branch, and the chips that the panel attaches to the prompt.
-// `run(directory, command)` runs a shell command, and `browse(url)` opens a page. Returns `open(href, session)`, which
-// opens the pull request or issue that `href` links to in the session, by default the routed one, and returns whether
-// it did: on a narrow window, the side region cannot show.
-export function github(ctx, { run, browse }) {
-  const model = createItems(run)
+// `run(directory, command)` runs a shell command, `browse(url)` opens a page, and `changed()` runs after each change
+// that the panel makes on GitHub. Returns `open(href, session)`, which opens the pull request or issue that `href` links
+// to in the session, by default the routed one, and returns whether it did: on a narrow window, the side region cannot
+// show.
+export function github(ctx, { run, browse, changed }) {
+  const model = createItems(run, changed)
   // The view that each item's panel shows: its summary, its timeline, or its files.
   const [views, setViews] = createStore({})
   const key = (id) => `${ctx.id}:${id}`
