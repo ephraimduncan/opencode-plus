@@ -9,6 +9,7 @@ import { archive } from "./archive.js"
 import * as branch from "./branch.js"
 import * as composer from "./composer.js"
 import * as cookies from "./cookies.js"
+import { github, strings as githubStrings } from "./github/index.jsx"
 import * as links from "./links.js"
 import { newSessionRow } from "./location-menu.js"
 import * as pr from "./pr.js"
@@ -281,13 +282,19 @@ function setup(ctx) {
     return true
   }
 
+  // Opens `url` in the browser pane, else in the system browser.
+  const visit = (url) => browse(url) || void ctx.system.openExternal(url)
+
+  // Opens the pull request or issue that a link names in the side region of the session, and returns whether it did.
+  const openGitHub = options.github ? github(ctx, { run, browse: visit }) : () => false
+
   const sync = () => {
     sidebar.shelve(shelf.value.archivedOpen)
     sidebar.layout(groups.value.enabled, working.value.inline)
     sidebar.plus(add)
     pr.show({
       lookup: pull,
-      open: (url) => ctx.system.openExternal(url),
+      open: (url) => openGitHub(url) || ctx.system.openExternal(url),
       label: ({ number, state, title }) => ctx.t("pr.label", { number, state: ctx.t(`pr.${state}`), title }),
     })
     branch.mount(dropdown)
@@ -339,7 +346,7 @@ function setup(ctx) {
       return dispose
     }),
   )
-  const unlistenLinks = links.listen(browse)
+  const unlistenLinks = links.listen((url) => openGitHub(url) || browse(url))
 
   createKeyed(
     () => `${shelf.value.archivedOpen}:${groups.value.enabled}:${working.value.inline}:${running()}`,
@@ -468,6 +475,7 @@ export default Plugin.define({
       "message.copied": "Copied",
       "message.copyFailed": "Could not copy the message",
       ...workflowStrings,
+      ...githubStrings,
     },
   },
   setup,

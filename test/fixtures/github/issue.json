@@ -1,0 +1,77 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "U_kgDOBeFunw",
+    "is_bot": false,
+    "login": "AXEG0",
+    "name": "Aleksandr Golovin"
+  },
+  "body": "### Describe the bug\n\n`gh issue develop <n> -R OWNER/REPO --name <branch> --base <base>`, run from a directory that is not inside a git repository, creates the linked branch on GitHub, then exits 1 with `failed to run git: fatal: not in a git directory` and prints no URL. A branch that was created reads as a failed command, and a script that checks the exit code treats it as a failure. Repeating the command with the same `--name` outside a repository fails the same way, because the existing-branch path reaches the same step.\n\nThe cause is the order in `developRunCreate`: after `CreateLinkedBranch` succeeds ([develop.go#L261](https://github.com/cli/cli/blob/674516ff39ccdaa8a525873f87552609dcda63de/pkg/cmd/issue/develop/develop.go#L261)), the `--base` value is written as `branch.<name>.gh-merge-base` with `git config` ([#L278-L283](https://github.com/cli/cli/blob/674516ff39ccdaa8a525873f87552609dcda63de/pkg/cmd/issue/develop/develop.go#L278-L283)), and an error there returns before the URL is printed ([#L285](https://github.com/cli/cli/blob/674516ff39ccdaa8a525873f87552609dcda63de/pkg/cmd/issue/develop/develop.go#L285)). The local steps after the URL already allow running outside a repository: `checkoutBranch` returns nil when no remotes are found, unless `--checkout` was given ([#L353-L364](https://github.com/cli/cli/blob/674516ff39ccdaa8a525873f87552609dcda63de/pkg/cmd/issue/develop/develop.go#L353-L364)). The branch-config write is the one local step that assumes a repository. This code is the same on `trunk` (674516f) and in v2.103.3.\n\nRelated, not duplicates: the write came with the `gh-merge-base` support in #9712 (for #10089). #12575 and #12651 fixed a different failure of the same line (an empty branch name written into `.git/config`). #9072 asks in general for no repository requirement where an operation does not touch one; here the remote work succeeds and only the local base-branch hint fails.\n\n### Affected version\n\n```\ngh version 2.96.0 (2026-07-02)\nhttps://github.com/cli/cli/releases/tag/v2.96.0\n```\n\nAlso reproduced with the latest release:\n\n```\ngh version 2.103.3 (2026-10-26)\nhttps://github.com/cli/cli/releases/tag/v2.103.3\n```\n\ngit version 2.50.1, Linux aarch64.\n\n### Steps to reproduce the behavior\n\nUse a repository `OWNER/REPO` where you can create branches, an issue `<n>` in it with no linked branches, and an empty directory that is not inside a git repository. Times are UTC, 2026-10-28.\n\n1. In the empty directory, gh 2.96.0, 14:47:24: `gh issue develop <n> -R OWNER/REPO --name <branch-a> --base main`. Exit 1, stdout empty, stderr `failed to run git: fatal: not in a git directory`. Afterwards `gh api repos/OWNER/REPO/branches/<branch-a>` returns the branch and `gh issue develop --list <n> -R OWNER/REPO` lists it.\n2. Control, same directory without `--base`, 14:47:26: `gh issue develop <n> -R OWNER/REPO --name <branch-b>`. Exit 0, prints `github.com/OWNER/REPO/tree/<branch-b>`.\n3. Control, step 1's command in a fresh `git init` directory with no remotes, 14:47:28: `gh issue develop <n> -R OWNER/REPO --name <branch-c> --base main`. Exit 0, prints `github.com/OWNER/REPO/tree/<branch-c>`, and `git config --get branch.<branch-c>.gh-merge-base` there returns `main`.\n4. Step 1 with gh 2.103.3, 14:47:44: `--name <branch-d>`. Exit 1, the same error, stdout empty, branch created.\n5. Step 4 repeated with the same `--name <branch-d>`, 14:47:45. Exit 1, the same error; `GH_DEBUG=true` shows the failing call is `git config branch.<branch-d>.gh-merge-base main`.\n6. Step 4 with a new name and `GH_DEBUG=true`, 14:47:53: `--name <branch-e>`. Exit 1, branch created; debug log below.\n\nBefore this reproduction the same failure showed up twice in normal use (2026-10-27 11:40Z and 2026-10-28 13:13Z), both run outside any repository, and in both GitHub's repository activity records the branch creation at the time of the failing call.\n\n### Expected vs actual behavior\n\nExpected: outside a repository, `--base` creates the branch, prints its URL and exits 0, as the command does without `--base`. The command's own code sets that behaviour for the other local steps: the test case \"develop new branch outside of local git repo\" in [develop_test.go](https://github.com/cli/cli/blob/674516ff39ccdaa8a525873f87552609dcda63de/pkg/cmd/issue/develop/develop_test.go#L582) expects the URL and no error, and `checkoutBranch` bails out silently when \"the command was not run from inside a git directory\" ([#L356-L358](https://github.com/cli/cli/blob/674516ff39ccdaa8a525873f87552609dcda63de/pkg/cmd/issue/develop/develop.go#L356-L358)). Inside a repository, `branch.<name>.gh-merge-base` is still written. With `--checkout`, an error outside a repository stays, as `checkoutBranch` already returns one.\n\nActual: exit 1, `failed to run git: fatal: not in a git directory`, no URL on stdout, and the linked branch exists on GitHub.\n\nThe existing outside-a-repository test case sets no `BaseBranch`, so this path has no test today; a `--base` variant of that case would cover it.\n\n### Logs\n\n```\n# 2026-10-28T14:47:24Z, empty directory outside any git repository, gh 2.96.0\n$ gh issue develop <n> -R OWNER/REPO --name <branch-a> --base main\nfailed to run git: fatal: not in a git directory\n# exit 1, stdout empty\n\n# 2026-10-28T14:47:26Z, same directory, no --base\n$ gh issue develop <n> -R OWNER/REPO --name <branch-b>\ngithub.com/OWNER/REPO/tree/<branch-b>\n# exit 0\n\n# 2026-10-28T14:47:28Z, fresh git init directory with no remotes\n$ gh issue develop <n> -R OWNER/REPO --name <branch-c> --base main\ngithub.com/OWNER/REPO/tree/<branch-c>\n# exit 0\n$ git config --get branch.<branch-c>.gh-merge-base\nmain\n\n# 2026-10-28T14:47:35Z\n$ gh issue develop --list <n> -R OWNER/REPO\n<branch-a>\thttps://github.com/OWNER/REPO/tree/<branch-a>\n<branch-b>\thttps://github.com/OWNER/REPO/tree/<branch-b>\n<branch-c>\thttps://github.com/OWNER/REPO/tree/<branch-c>\n```\n\n<details><summary>GH_DEBUG=true, gh 2.103.3, step 6 (new branch, empty directory), full stderr, timestamps cut to milliseconds</summary>\n\n```\n$ GH_DEBUG=true gh issue develop <n> -R OWNER/REPO --name <branch-e> --base main\n* Request at 2026-10-28 14:47:53.683 +0000 UTC\n* Request to https://api.github.com/graphql\n* Request took 292.680777ms\n* Request at 2026-10-28 14:47:53.976 +0000 UTC\n* Request to https://api.github.com/graphql\n* Request took 373.390274ms\n* Request at 2026-10-28 14:47:54.350 +0000 UTC\n* Request to https://api.github.com/graphql\n* Request took 186.698001ms\n* Request at 2026-10-28 14:47:54.537 +0000 UTC\n* Request to https://api.github.com/graphql\n* Request took 235.275504ms\n* Request at 2026-10-28 14:47:54.773 +0000 UTC\n* Request to https://api.github.com/graphql\n* Request took 717.826486ms\n[git config branch.<branch-e>.gh-merge-base main]\nfailed to run git: fatal: not in a git directory\n# exit 1, stdout empty\n```\n\n</details>\n",
+  "closedAt": null,
+  "closedByPullRequestsReferences": [
+    {
+      "id": "PR_kwDODKw3uc8AAAABMhol6g",
+      "number": 14914,
+      "repository": {
+        "id": "MDEwOlJlcG9zaXRvcnkyMTI2MTMwNDk=",
+        "name": "cli",
+        "owner": {
+          "id": "MDEyOk9yZ2FuaXphdGlvbjU5NzA0NzEx",
+          "login": "cli"
+        }
+      },
+      "url": "https://github.com/cli/cli/pull/14914"
+    }
+  ],
+  "comments": [
+    {
+      "id": "IC_kwDODKw3uc8AAAABgckALA",
+      "author": {
+        "login": "cli-triage"
+      },
+      "authorAssociation": "NONE",
+      "body": "Thanks for the detailed report and investigation! I verified the cited source at commit [674516f](https://github.com/cli/cli/commit/674516ff39ccdaa8a525873f87552609dcda63de):\n\n- In [`developRunCreate`](https://github.com/cli/cli/blob/674516ff39ccdaa8a525873f87552609dcda63de/pkg/cmd/issue/develop/develop.go#L278-L283), after the linked branch is created on GitHub, `opts.GitClient.SetBranchConfig(...)` is called unconditionally whenever `--base` is set, before the URL is printed and before `checkoutBranch` runs.\n- [`SetBranchConfig`](https://github.com/cli/cli/blob/674516ff39ccdaa8a525873f87552609dcda63de/git/client.go#L493-L503) shells out to `git config branch.<name>.gh-merge-base <base>` with no guard for \"not in a git directory\", so it returns an error that aborts the command before the URL line is reached.\n- By contrast, [`checkoutBranch`](https://github.com/cli/cli/blob/674516ff39ccdaa8a525873f87552609dcda63de/pkg/cmd/issue/develop/develop.go#L353-L364), which runs later, already tolerates being invoked outside a git repository (it swallows the \"no remotes found\" error unless `--checkout` was passed).\n\nThis matches the reported symptom: the remote linked branch is created successfully, but the local `git config` write fails and the command exits 1 without printing the branch URL, even though the equivalent run without `--base` succeeds. Suggesting `bug` and the `gh-issue` command label; `priority-3` since the remote operation itself succeeds and a workaround exists (run from inside a git repo). No duplicate found — related issues (#12986, #13805, #9072, #12575, #12651) address different failure modes of `gh issue develop`.\n\n> Generated by [Issue Triage (skills-driven)](https://github.com/cli/cli/actions/runs/40709877605) for #14856 · copilot · auto · 90.8 AIC · ⊞ 4.5K · [◷](https://github.com/search?q=repo%3Acli%2Fcli+%22gh-aw-workflow-call-id%3A+cli%2Fcli%2Fissue-triage%22&type=issues)\n\n<!-- gh-aw-agentic-workflow: Issue Triage (skills-driven), engine: copilot, model: auto, id: 40709877605, workflow_id: issue-triage, run: https://github.com/cli/cli/actions/runs/40709877605 -->\n<!-- gh-aw-workflow-call-id: cli/cli/issue-triage -->",
+      "createdAt": "2026-10-28T14:56:58Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/cli/cli/issues/14856#issuecomment-6472400940",
+      "viewerDidAuthor": false
+    }
+  ],
+  "createdAt": "2026-10-28T14:50:09Z",
+  "issueType": null,
+  "labels": [
+    {
+      "id": "MDU6TGFiZWwxNTkzNDg0NjIw",
+      "name": "bug",
+      "description": "Something isn't working",
+      "color": "d73a4a"
+    },
+    {
+      "id": "MDU6TGFiZWwxODI1MDc2ODcz",
+      "name": "priority-3",
+      "description": "Affects a small number of users or is largely cosmetic",
+      "color": "eded04"
+    },
+    {
+      "id": "LA_kwDODKw3uc8AAAABZDtRDQ",
+      "name": "gh-issue",
+      "description": "relating to the gh issue command",
+      "color": "430568"
+    }
+  ],
+  "milestone": null,
+  "number": 14856,
+  "parent": null,
+  "state": "OPEN",
+  "stateReason": "",
+  "subIssuesSummary": {
+    "completed": 0,
+    "percentCompleted": 0,
+    "total": 0
+  },
+  "title": "`gh issue develop --base` outside a git repository creates the branch, then exits 1 without printing its URL",
+  "url": "https://github.com/cli/cli/issues/14856"
+}

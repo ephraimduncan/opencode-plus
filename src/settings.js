@@ -12,6 +12,7 @@ export function settings(options = {}) {
     responseLabel:
       typeof options.responseLabel === "string" ? options.responseLabel : options.responseLabel === false ? "" : "Response",
     lowercaseVariants: options.lowercaseVariants !== false,
+    github: options.github !== false,
     workflows: options.workflows !== false,
     workflowSize: SIZES.includes(options.workflowSize) ? options.workflowSize : "medium",
     workflowConcurrency:

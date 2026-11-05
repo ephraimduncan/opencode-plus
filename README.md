@@ -1,6 +1,6 @@
 # opencode-plus
 
-opencode-plus is a plugin for the OpenCode Desktop app. It puts the sessions in the sidebar into groups by project, archives finished sessions, runs dynamic workflows, and makes the conversation easier to read.
+opencode-plus is a plugin for the OpenCode Desktop app. It puts the sessions in the sidebar into groups by project, archives finished sessions, runs dynamic workflows, shows GitHub pull requests and issues at the side of the conversation, and makes the conversation easier to read.
 
 The plugin works with OpenCode Desktop 2.2.5.
 
@@ -19,8 +19,27 @@ The plugin works with OpenCode Desktop 2.2.5.
 - If the branch of a session has a pull request on GitHub, the sidebar shows a badge after the branch name, like T3 Code. The badge shows the number of the pull request, for example `#12`.
 - The color and the icon of the badge show the state of the pull request: open, draft, merged, or closed.
 - If a branch has more than one pull request, the badge shows the open pull request. If no pull request is open, the badge shows the pull request with the most recent change.
-- A click on the badge opens the pull request in your browser. If you hold the pointer on the badge, the title of the pull request shows.
+- A click on the badge opens the pull request in the GitHub panel. If you hold the pointer on the badge, the title of the pull request shows.
 - The plugin finds the pull requests with the `gh` command. The plugin does a check of each branch again after two minutes, and when a session on the branch stops its run.
+
+### GitHub panel
+
+- A click on a link to a GitHub pull request or issue opens the GitHub panel at the side of the conversation, in a tab for that pull request or issue. Links to a page of a pull request, for example its files or a comment, also open the panel.
+- The header of the panel shows the title, the state, the author, the base and head branches, and the size of the change. A button in the header copies the `gh pr checkout` command.
+- The "Summary" tab starts with a status card. The status card tells you if the pull request can merge. If it cannot merge, the card tells you why: for example merge conflicts, failed checks, or a review that requests changes.
+- Under the status card, rows show the reviewers, the assignees, the labels, the branch, and the milestone. A ring around the picture of a reviewer shows the verdict of that reviewer. The "Branch" row tells you if the branch is up to date with the base branch, behind it, or in conflict with it.
+- Then the "Summary" tab shows the full description, the checks, and the comments and reviews. The failed checks and the running checks show first.
+- The "Timeline" tab shows each event on a vertical line: the start of the pull request, the commits, the comments and reviews as cards, and the merge. A button changes the order from "Oldest first" to "Newest first".
+- The "Files" tab shows the changed files and the number of commits. A click on a file shows its diff, with line numbers and the syntax colors of the app's theme. "Expand all" opens all the files. If the pull request changes more than six files, you can filter the files by name.
+- If you can write to the repository, the card has a merge button for the merge method that you use on GitHub. The other permitted methods are in the menu next to the button. The plugin asks before it merges.
+- When the checks run or a review is necessary, "Merge when ready" turns on auto-merge. When the branch is out of date, "Update branch" adds the latest commits of the base branch to it.
+- When the pull request has merge conflicts, failed checks, or a review that requests changes, the card has a button for the agent. For example, "Resolve conflicts" attaches the pull request to the prompt and writes an instruction in an empty prompt. You can change the instruction before you send it.
+- A failed check has a "Fix" button, and a review that requests changes has an "Address" button. These buttons attach the pull request to the prompt with an instruction for that check or that review.
+- The card of an open issue has "Fix with the agent". It attaches the issue and its description to the prompt in the same way.
+- The `⋯` menu of the panel copies the link, the branch name, or the checkout command. It also marks a pull request ready for review or converts it to a draft, and closes or reopens a pull request or issue.
+- "Add to the prompt" in the `⋯` menu attaches the pull request or issue to the prompt, with no instruction.
+- The panel reads an open pull request or issue again each minute while it shows.
+- The plugin reads and changes pull requests and issues with the `gh` command, in the folder of the session.
 
 ### Automatic archive
 
@@ -55,7 +74,7 @@ The plugin works with OpenCode Desktop 2.2.5.
 
 ### Links
 
-- A click on a web link opens the page in a new tab of the browser pane, at the side of the conversation.
+- A click on a web link opens the page in a new tab of the browser pane, at the side of the conversation. A link to a GitHub pull request or issue opens the GitHub panel.
 - If you hold ⌘ (Ctrl on Windows and Linux) when you click a link, the page opens in the browser of your computer.
 - Links in a dialog of the app, for example in Settings, open in the browser of your computer.
 - If the app cannot show the browser pane, for example because the window is not sufficiently wide, the page opens in the browser of your computer.
@@ -134,6 +153,7 @@ To change the behavior of the plugin, use the `options` object of the plugin ent
         "hideAgent": "build",
         "responseLabel": "Response",
         "lowercaseVariants": true,
+        "github": true,
         "workflows": true,
         "workflowSize": "medium"
       }
@@ -148,6 +168,7 @@ To change the behavior of the plugin, use the `options` object of the plugin ent
 | `hideAgent` | `"build"` | The agent for which the agent dropdown does not show. `false` always shows the dropdown. |
 | `responseLabel` | `"Response"` | The text on the divider above the last text of an answer. `""` shows the divider with no text. |
 | `lowercaseVariants` | `true` | Shows reasoning levels in lowercase. `false` keeps the capital first letter that the app shows. |
+| `github` | `true` | Opens links to GitHub pull requests and issues in the GitHub panel. `false` opens them in the browser pane, as other links. |
 | `workflows` | `true` | Lets the agent run workflows. `false` removes the workflow tool, the "Workflows" panel, and the workflow commands. |
 | `workflowSize` | `"medium"` | The number of agents that the agent tries to use in each workflow: `"small"` (less than 5), `"medium"` (less than 10), `"large"` (less than 50), or `"unrestricted"`. If you ask for more agents, the agent uses more. |
 | `workflowConcurrency` | The number of CPU cores minus 2, from 1 to 16 | The maximum number of agents of one workflow that operate at the same time. |
@@ -163,6 +184,7 @@ Open the command palette and type the name of a command:
 | "Show archived sessions" | Opens the "Archived" section. When the section is open, the command is "Hide archived sessions". |
 | "Stop grouping sessions by project" | Shows one list with no project groups. The command then changes to "Group sessions by project". |
 | "Show working sessions in their own section" | Moves working sessions back to the "Working" section of the app. |
+| "Show the pull request of this branch" | Opens the pull request of the branch of the session in the GitHub panel. |
 | "Show workflows" | Opens the "Workflows" panel. If the panel is open, the command closes it. |
 | "Turn on ultracode for this session" | Does the same as `/ultracode`. When ultracode is on, the command is "Turn off ultracode for this session". |
 
@@ -172,7 +194,8 @@ Open the command palette and type the name of a command:
 - The sidebar, the chat input, the conversation, and the context ring have no plugin API. Thus, the plugin changes the markup of the app.
 - If a new release of OpenCode changes this markup, some changes of the plugin can stop. The rest of OpenCode continues to operate.
 - The branch dropdown operates only with folders on the computer that runs OpenCode Desktop.
-- The pull request badge operates only if the `gh` command is installed and has access to GitHub. The badge shows only pull requests from the owner of the `origin` remote.
+- The pull request badge and the GitHub panel operate only if the `gh` command is installed and has access to GitHub. The badge shows only pull requests from the owner of the `origin` remote.
+- The GitHub panel shows a maximum of 100 changed files. The "Files" tab has a link to the remaining files on GitHub.
 - The browser pane keeps only cookies. A site that keeps its login in local storage, for example some apps on Firebase, does not stay logged in after a restart.
 - Automatic archive operates only while OpenCode Desktop is open. When you open the app again, the plugin archives the due sessions in approximately one minute.
 - A workflow runs in the OpenCode server. If OpenCode Desktop closes, the workflow stops.
