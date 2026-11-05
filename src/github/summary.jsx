@@ -18,7 +18,7 @@ const GATES = {
   changes: { variant: "error", hand: "review", glyph: "reply" },
   failing: { variant: "error", hand: "checks", glyph: "hammer" },
   review: { variant: "warning", auto: true },
-  pending: { variant: "warning", auto: true },
+  pending: { variant: "warning", auto: true, now: true },
   behind: { variant: "warning", auto: true, update: true },
   blocked: { variant: "warning", auto: true },
   unknown: { variant: "normal", auto: true },
@@ -44,6 +44,8 @@ export function PullSummary(props) {
       gate().ready && "ready",
       gate().update && "update",
       gate().auto && merger() && !props.item.autoMerge && "auto",
+      // Before the required checks pass, GitHub merges only for an admin.
+      gate().now && merger() && (!props.item.blocked || props.repo.admin) && "now",
       gate().reopen && "reopen",
     ].filter(Boolean)
 
@@ -123,15 +125,37 @@ export function PullSummary(props) {
                 <Label glyph="sync">{ctx.t("github.update")}</Label>
               </ctx.ui.Button>
             </Show>
-            <Show when={offers().includes("auto")}>
-              <ctx.ui.Button
-                variant="neutral"
-                size="small"
-                busy={busy("auto")}
-                onClick={() => void props.merge(methods()[0], true)}
-              >
-                <Label glyph="clock">{ctx.t("github.merge.auto")}</Label>
-              </ctx.ui.Button>
+            <Show when={offers().includes("auto") || offers().includes("now")}>
+              <span class="flex items-center">
+                <Show when={offers().includes("auto")}>
+                  <ctx.ui.Button
+                    variant="neutral"
+                    size="small"
+                    busy={busy("auto")}
+                    onClick={() => void props.merge(methods()[0], "auto")}
+                  >
+                    <Label glyph="clock">{ctx.t("github.merge.auto")}</Label>
+                  </ctx.ui.Button>
+                </Show>
+                <Show when={offers().includes("now")}>
+                  <ctx.ui.Menu
+                    label={ctx.t("github.merge.now")}
+                    trigger={offers().includes("auto") ? "icon" : "button"}
+                    icon="chevron-down"
+                    placement="bottom-start"
+                    items={[
+                      {
+                        type: "group",
+                        label: ctx.t("github.merge.now"),
+                        items: methods().map((method) => ({
+                          label: ctx.t(`github.method.${method}`),
+                          onSelect: () => void props.merge(method, "now"),
+                        })),
+                      },
+                    ]}
+                  />
+                </Show>
+              </span>
             </Show>
             <Show when={offers().includes("reopen")}>
               <ctx.ui.Button

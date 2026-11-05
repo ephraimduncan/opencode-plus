@@ -114,24 +114,39 @@ test("reads an issue, and moves an issue link of a pull request to the pull requ
   expect(read("https://github.com/cli/cli/issues/14914", fixture("pull-open"))).toEqual({ moved: OPEN })
 })
 
-// Catches a merge with a method that the repository does not allow, or a merge button for a user who cannot merge.
+// Catches a merge with a method that the repository does not allow, a merge button for a user who cannot merge, and an
+// admin merge offered to a user who is not an admin.
 test("lists the allowed merge methods, the user's usual one first", () => {
   const settings = { squashMergeAllowed: true, mergeCommitAllowed: false, rebaseMergeAllowed: true }
 
   expect(methods({ ...settings, viewerDefaultMergeMethod: "REBASE", viewerPermission: "WRITE" })).toEqual({
     methods: ["rebase", "squash"],
     write: true,
+    admin: false,
   })
   expect(methods({ ...settings, viewerDefaultMergeMethod: "MERGE", viewerPermission: "READ" })).toEqual({
     methods: ["squash", "rebase"],
     write: false,
+    admin: false,
   })
+  expect(methods({ ...settings, viewerPermission: "ADMIN" })).toMatchObject({ write: true, admin: true })
+})
+
+// Catches a merge before the checks end that GitHub refuses: when a rule requires the checks, only an admin can merge.
+test.each([
+  ["BLOCKED", true],
+  ["UNSTABLE", false],
+])("a pull request with running checks and the merge state %s is blocked: %s", (mergeStateStatus, want) => {
+  const fields = { reviewDecision: "", mergeStateStatus, statusCheckRollup: [run("lint", null, "QUEUED")] }
+
+  expect(read(OPEN, { ...fixture("pull-open"), ...fields })).toMatchObject({ gate: "pending", blocked: want })
 })
 
 // Catches a change made with the command of the other kind of item, or a merge that ignores the chosen method.
 test.each([
   [OPEN, "merge", "squash", `pr merge '${OPEN}' --squash`],
   [OPEN, "auto", "rebase", `pr merge '${OPEN}' --rebase --auto`],
+  [OPEN, "admin", "squash", `pr merge '${OPEN}' --squash --admin`],
   [OPEN, "ready", undefined, `pr ready '${OPEN}'`],
   [OPEN, "update", undefined, `pr update-branch '${OPEN}'`],
   [ISSUE, "close", undefined, `issue close '${ISSUE}'`],

@@ -121,6 +121,7 @@ export const current = `${GH} pr view --json url --jq .url 2>&1`
 const ACTIONS = {
   merge: (method) => ["pr merge", `--${method}`],
   auto: (method) => ["pr merge", `--${method} --auto`],
+  admin: (method) => ["pr merge", `--${method} --admin`],
   manual: () => ["pr merge", "--disable-auto"],
   ready: () => ["pr ready", ""],
   draft: () => ["pr ready", "--undo"],
@@ -156,8 +157,8 @@ export function read(target, json) {
   return issue(json)
 }
 
-// The merge methods that the repository allows, the user's usual one first, and whether the user can merge there, from
-// the JSON that `settings` prints.
+// The merge methods that the repository allows, the user's usual one first, whether the user can merge there, and
+// whether they can merge as an admin past the rules of the repository, from the JSON that `settings` prints.
 export function methods(json) {
   const allowed = [
     json.squashMergeAllowed && "squash",
@@ -169,6 +170,7 @@ export function methods(json) {
   return {
     methods: allowed.includes(usual) ? [usual, ...allowed.filter((method) => method !== usual)] : allowed,
     write: ["ADMIN", "MAINTAIN", "WRITE"].includes(json.viewerPermission),
+    admin: json.viewerPermission === "ADMIN",
   }
 }
 
@@ -204,6 +206,7 @@ function pull(json) {
     body: text(json.body),
     state: json.state === "OPEN" && json.isDraft ? "draft" : json.state.toLowerCase(),
     gate: gate(json, checks),
+    blocked: json.mergeStateStatus === "BLOCKED",
     author: login(json.author),
     base: json.baseRefName,
     branch: json.headRefName,
