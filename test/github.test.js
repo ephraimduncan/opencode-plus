@@ -296,6 +296,24 @@ test("reads the item again after a change, and drops the diff of an older commit
   expect(items.state.items[OPEN].patches).toBeUndefined()
 })
 
+// Catches a merge in the panel that the archive does not learn about until its next sweep, and a sweep after a merge
+// that GitHub refused.
+test("tells the archive about each change that GitHub accepts", async () => {
+  const outputs = [
+    { ok: true, output: "" },
+    { ok: true, output: JSON.stringify(fixture("pull-merged")) },
+    { ok: false, output: "GraphQL: Pull Request is not mergeable (mergePullRequest)" },
+    { ok: true, output: JSON.stringify(fixture("pull-open")) },
+  ]
+  const changed = vi.fn()
+  const items = createItems(async () => outputs.shift(), changed)
+
+  expect(await items.change(OPEN, "/repo", "merge", "squash")).toBeUndefined()
+  expect(changed).toHaveBeenCalledTimes(1)
+  expect(await items.change(OPEN, "/repo", "merge", "squash")).toBeDefined()
+  expect(changed).toHaveBeenCalledTimes(1)
+})
+
 // Catches merge buttons that stay gone after one failed read of the repository, and a read of the repository on each
 // read of the pull request.
 test("reads the merge methods of a repository again only after a failed read", async () => {

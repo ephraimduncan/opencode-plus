@@ -84,24 +84,66 @@ ${Object.keys(icons)
 // is a branch named `branch`.
 export const command = (branch) =>
   "git remote get-url origin && GH_NO_UPDATE_NOTIFIER=1 gh pr list --state all --limit 20 " +
-  `--json number,title,url,state,isDraft,updatedAt,mergedAt,headRepositoryOwner --head ${quote(branch)} 2>/dev/null`
+  `--json number,title,url,state,isDraft,updatedAt,headRepositoryOwner --head ${quote(branch)} 2>/dev/null`
 
-// The pull request in the output of `command`: the most recently updated open one, else the most recently updated.
-// Only pull requests from the owner of `origin` count, so a fork's pull request from its own `main` does not show on
-// `main`. Its state is "open", "draft", "merged", or "closed", and `mergedAt` is GitHub's time of the merge, or null.
-// Undefined when the branch has none.
+// The pull request in the output of `command`. Only pull requests from the owner of `origin` count, so a fork's pull
+// request from its own `main` does not show on `main`. Undefined when the branch has none.
 export function latest(output) {
   const [remote, ...json] = output.trim().split(/\r?\n/)
-  const owner = remote.match(/[:/]([^/:]+)\/[^/]+$/)?.[1].toLowerCase()
-  const list = JSON.parse(json.join("\n"))
-    .filter((pull) => pull.headRepositoryOwner?.login.toLowerCase() === owner)
-    .toSorted((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-  const pull = list.find((item) => item.state === "OPEN") ?? list[0]
+  const origin = owner(remote)?.toLowerCase()
 
-  if (!pull) return
-  const state = pull.state === "OPEN" && pull.isDraft ? "draft" : pull.state.toLowerCase()
+  return pick(
+    JSON.parse(json.join("\n"))
+      .filter((pull) => pull.headRepositoryOwner?.login.toLowerCase() === origin)
+      .map((pull) => ({
+        number: pull.number,
+        title: pull.title,
+        url: pull.url,
+        state: pull.state === "OPEN" && pull.isDraft ? "draft" : pull.state.toLowerCase(),
+        updatedAt: pull.updatedAt,
+      })),
+  )
+}
 
-  return { number: pull.number, title: pull.title, url: pull.url, state, mergedAt: pull.mergedAt }
+// The owner of the repository at `remote`, the URL of a git remote.
+export const owner = (remote) => remote.trim().match(/[:/]([^/:]+)\/[^/]+$/)?.[1]
+
+// The shell command that asks GitHub's REST API for the pull requests whose head is the branch `branch` of `login`,
+// as `command` finds them. With the ETag of an earlier answer, GitHub answers 304 when nothing changed, and does not
+// count the request against the rate limit. Thus, the archive can ask every few seconds.
+export const ask = (login, branch, etag) =>
+  "GH_NO_UPDATE_NOTIFIER=1 gh api --include " +
+  (etag ? `--header ${quote(`If-None-Match: ${etag}`)} ` : "") +
+  quote(`repos/{owner}/{repo}/pulls?state=all&per_page=20&head=${login}:${encodeURIComponent(branch)}`) +
+  " 2>/dev/null"
+
+// GitHub's answer to `ask`: its ETag, and the pull request as `latest` gives it, with `closedAt`, GitHub's time of its
+// merge or close, or null. Undefined when nothing changed, or when the request was not successful.
+export function answer(output) {
+  const [head, ...body] = output.split(/\r?\n\r?\n/)
+
+  if (!/^HTTP\/\S+ 200\b/.test(head)) return
+
+  const pull = pick(
+    JSON.parse(body.join("\n\n")).map((pull) => ({
+      number: pull.number,
+      title: pull.title,
+      url: pull.html_url,
+      state: pull.merged_at ? "merged" : pull.state === "open" && pull.draft ? "draft" : pull.state,
+      closedAt: pull.closed_at,
+      updatedAt: pull.updated_at,
+    })),
+  )
+
+  return { etag: head.match(/^etag: *(.*?)\s*$/im)?.[1], pull }
+}
+
+// The pull request of a branch: the most recently updated open one, else the most recently updated. Its state is
+// "open", "draft", "merged", or "closed".
+const pick = (list) => {
+  const sorted = list.toSorted((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+
+  return sorted.find((pull) => pull.state === "open" || pull.state === "draft") ?? sorted[0]
 }
 
 // Each project and branch's pull request: when its lookup ended, and what it found. A lookup under way has no `time`.
