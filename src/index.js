@@ -90,8 +90,8 @@ function setup(ctx) {
         void start(name).catch(() => ctx.toast.show({ title: ctx.t("session.failed", { project: name }) })),
     })
 
-  // Runs `command` with the user's shell in `directory`, on the app's server. Returns whether it exited with 0, and its
-  // output.
+  // Runs `command` with the user's shell in `directory`, on the app's server. Returns whether it exited with 0, and all
+  // of its output.
   const run = async (directory, command) => {
     const location = { directory }
     let { data: shell } = await ctx.client.shell.create({ location, command, timeout: MINUTE })
@@ -102,7 +102,12 @@ function setup(ctx) {
         shell = (await ctx.client.shell.get({ id: shell.id, location })).data
       }
 
-      const { data } = await ctx.client.shell.output({ id: shell.id, location })
+      let { data } = await ctx.client.shell.output({ id: shell.id, location })
+
+      // The first page holds only the start of a long output, such as an image. One read of the rest could cut a
+      // character in two, so the second read takes the output from its start.
+      if (data.cursor < data.size)
+        ({ data } = await ctx.client.shell.output({ id: shell.id, location, cursor: 0, limit: data.size }))
 
       return { ok: shell.exit === 0, output: data.output }
     } finally {
