@@ -207,6 +207,8 @@ export const strings = {
   "github.gate.review.detail": "It needs an approval before it can merge.",
   "github.gate.pending": "Checks are running",
   "github.gate.pending.detail": "It can merge when the required checks pass.",
+  "github.gate.pending.optional.detail":
+    "No rule of the repository makes them necessary. You can merge before they complete.",
   "github.gate.behind": "Branch is out of date",
   "github.gate.behind.detail": "Update the branch with {{base}} before you merge.",
   "github.gate.blocked": "Merge is blocked",

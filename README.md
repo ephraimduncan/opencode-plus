@@ -32,14 +32,14 @@ The plugin works with OpenCode Desktop 2.2.5.
 - The "Timeline" tab shows each event on a vertical line: the start of the pull request, the commits, the comments and reviews as cards, and the merge. A button changes the order from "Oldest first" to "Newest first".
 - The "Files" tab shows the changed files and the number of commits. A click on a file shows its diff, with line numbers and the syntax colors of the app's theme. "Expand all" opens all the files. If the pull request changes more than six files, you can filter the files by name.
 - If you can write to the repository, the card has a merge button for the merge method that you use on GitHub. The other permitted methods are in the menu next to the button. The plugin asks before it merges.
-- When the checks run or a review is necessary, "Merge when ready" turns on auto-merge. When the branch is out of date, "Update branch" adds the latest commits of the base branch to it.
-- While the checks run, the "Merge now" menu next to "Merge when ready" merges the pull request before the checks complete. If a rule of the repository makes the checks necessary, only an admin gets the menu. The admin merge ignores the rules of the repository.
+- When GitHub waits for the checks or for a review, "Merge when ready" turns on auto-merge. When the branch is out of date, "Update branch" adds the latest commits of the base branch to it.
+- While the checks run, "Merge now" merges the pull request before the checks complete. The other permitted methods are in the menu next to the button. If no rule of the repository makes the checks necessary, GitHub does not wait for them, and the card shows only "Merge now". If a rule makes the checks necessary, only an admin gets "Merge now". The admin merge ignores the rules of the repository.
 - When the pull request has merge conflicts, failed checks, or a review that requests changes, the card has a button for the agent. For example, "Resolve conflicts" attaches the pull request to the prompt and writes an instruction in an empty prompt. You can change the instruction before you send it.
 - A failed check has a "Fix" button, and a review that requests changes has an "Address" button. These buttons attach the pull request to the prompt with an instruction for that check or that review.
 - The card of an open issue has "Fix with the agent". It attaches the issue and its description to the prompt in the same way.
 - The `⋯` menu of the panel copies the link, the branch name, or the checkout command. It also marks a pull request ready for review or converts it to a draft, and closes or reopens a pull request or issue.
 - "Add to the prompt" in the `⋯` menu attaches the pull request or issue to the prompt, with no instruction.
-- The panel reads an open pull request or issue again each minute while it shows.
+- The panel reads an open pull request or issue again each minute while it shows. While the checks run, or while GitHub does a check for conflicts, the panel reads the pull request again every five seconds. Thus the card changes when GitHub completes, and you do not have to refresh it.
 - The plugin reads and changes pull requests and issues with the `gh` command, in the folder of the session.
 
 ### Automatic archive
