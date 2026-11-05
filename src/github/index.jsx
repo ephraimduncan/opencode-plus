@@ -227,6 +227,11 @@ export const strings = {
   "github.merge.title": "Merge pull request #{{number}}?",
   "github.merge.auto.title": "Merge pull request #{{number}} when it is ready?",
   "github.merge.auto": "Merge when ready",
+  "github.merge.now": "Merge now",
+  "github.merge.now.title": "Merge pull request #{{number}} now?",
+  "github.merge.now.detail": "The checks have not finished.",
+  "github.merge.now.admin":
+    "The checks have not finished. You merge as an admin, and GitHub ignores the rules of the repository.",
   "github.merge.manual": "Turn off auto-merge",
   "github.merge.other": "Other merge methods",
   "github.hand.conflicts": "Resolve conflicts",

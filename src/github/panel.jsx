@@ -82,14 +82,22 @@ export function ItemView(props) {
       ctx.toast.show({ variant: "error", title: ctx.t("github.action.failed"), description: problem(ctx, error).body })
   }
 
-  const merge = async (method, auto) => {
+  // Merges with `method` after the user agrees. `when` is "auto" to merge when the pull request is ready, or "now" to
+  // merge before the checks end: as an admin when a rule of the repository requires them.
+  const merge = async (method, when) => {
+    const admin = when === "now" && item().blocked
+    const notes = [
+      ctx.t(`github.method.${method}.detail`, { base: item().base }),
+      when === "now" && ctx.t(admin ? "github.merge.now.admin" : "github.merge.now.detail"),
+    ]
     const yes = await ctx.dialogs.confirm({
-      title: ctx.t(auto ? "github.merge.auto.title" : "github.merge.title", { number: ref.number }),
-      description: ctx.t(`github.method.${method}.detail`, { base: item().base }),
-      confirm: ctx.t(auto ? "github.merge.auto" : `github.method.${method}`),
+      title: ctx.t(when ? `github.merge.${when}.title` : "github.merge.title", { number: ref.number }),
+      description: notes.filter(Boolean).join(" "),
+      confirm: ctx.t(when === "auto" ? "github.merge.auto" : `github.method.${method}`),
+      danger: admin,
     })
 
-    if (yes) await change(auto ? "auto" : "merge", method)
+    if (yes) await change(when === "auto" ? "auto" : admin ? "admin" : "merge", method)
   }
 
   const close = async () => {
