@@ -209,15 +209,15 @@ export async function workflows(ctx, options) {
         metadata: { name: meta.name, description: meta.description, phases: meta.phases.map((phase) => phase.title) },
       })
     } catch (error) {
-      item.status = "denied"
-      item.ended = Date.now()
-      changed(item, true)
-      shared.runs.delete(id)
+      end(item, "denied")
       throw error
     }
 
-    // The cleanup of the plugin dropped the run while it waited, so nothing could stop or pause it.
-    if (controller.signal.aborted) throw new Error("OpenCode stopped the workflow plugin before the run could start.")
+    // The plugin stopped before the run started, so nothing could stop or pause the run.
+    if (controller.signal.aborted) {
+      end(item, "stopped")
+      throw new Error("OpenCode stopped the workflow plugin before the run could start.")
+    }
 
     item.run = new Run({
       id,
@@ -543,6 +543,16 @@ export async function workflows(ctx, options) {
       .catch(() => undefined)
   }
 
+  // Ends a run that never started: the user denied it, or the plugin stopped first. The cleanup of the plugin can end a
+  // run while it waits for permission, so a second call does nothing.
+  function end(item, status) {
+    if (item.ended) return
+    item.status = status
+    item.ended = Date.now()
+    changed(item, true)
+    shared.runs.delete(item.id)
+  }
+
   // Publishes the run's change to the panel, at most every FLUSH ms, and saves it to disk at most every SAVE ms. An ended
   // run saves each change, such as the last tokens of its stopped agents.
   function changed(item, now = false) {
@@ -717,9 +727,11 @@ export async function workflows(ctx, options) {
     controller.abort()
     for (const item of shared.runs.values()) {
       if (item.owner !== owner) continue
-      item.run?.stop()
-      clearTimeout(item.flushTimer)
-      shared.runs.delete(item.id)
+      if (item.run) {
+        item.run.stop()
+        clearTimeout(item.flushTimer)
+        shared.runs.delete(item.id)
+      } else end(item, "stopped")
     }
     await rpc.dispose()
   }
