@@ -144,8 +144,13 @@ export async function workflows(ctx, options) {
     if (agent) {
       event.system.push({ type: "text", text: agentNote(agent) })
       for (const name of WITHHELD) delete event.tools[name]
-      if (agent.schema && event.tools[OUTPUT]) event.tools[OUTPUT].input = agent.schema
-      else delete event.tools[OUTPUT]
+      if (!agent.schema) delete event.tools[OUTPUT]
+      else if (event.tools[OUTPUT]) event.tools[OUTPUT].input = agent.schema
+      else {
+        // A policy can still deny the tool. Without it the agent cannot return its result, so it stops before it works.
+        agent.fatal ??= `agent({ schema }): the agent does not have the ${OUTPUT} tool, so it cannot return a result. A permission rule or policy denies it.`
+        void ctx.session.interrupt({ sessionID: event.sessionID }).catch(() => undefined)
+      }
 
       return
     }
@@ -336,6 +341,7 @@ export async function workflows(ctx, options) {
         agent: profile.id ?? kind,
         ...(model && { model }),
         ...(worktree && { location: { directory: worktree.directory } }),
+        ...(options.schema !== undefined && { permissions: await allowOutput(item.sessionID) }),
         metadata: { "opencode-plus.workflow": { runID: item.id, agentID: agent.id } },
       })
 
@@ -428,6 +434,15 @@ export async function workflows(ctx, options) {
     }
 
     return model
+  }
+
+  // The rules of a structured agent's session: the parent's, which a session inherits only when it sets none, and an
+  // allow for the output tool. OpenCode checks a session's rules after its agent's, and the last match wins, so the
+  // allow holds for agents that deny every tool they do not list, such as explore.
+  async function allowOutput(sessionID) {
+    const parent = await ctx.session.get({ sessionID })
+
+    return [...(parent.permissions ?? []), { action: OUTPUT, resource: "*", effect: "allow" }]
   }
 
   async function isolate(item, agent) {
