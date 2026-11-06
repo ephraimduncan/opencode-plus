@@ -11,7 +11,7 @@ import * as composer from "./composer.js"
 import * as cookies from "./cookies.js"
 import { github, strings as githubStrings } from "./github/index.jsx"
 import * as links from "./links.js"
-import { newSessionRow } from "./location-menu.js"
+import * as menu from "./menu.js"
 import * as pr from "./pr.js"
 import { settings } from "./settings.js"
 import * as shell from "./shell.js"
@@ -79,10 +79,14 @@ function setup(ctx) {
   // Opens a new session in the project the sidebar names `name`. Without a match, the app's project picker opens
   // instead.
   const start = async (name) => {
-    const project = await find(name)
+    try {
+      const project = await find(name)
 
-    if (!project) return ctx.layout.project(SIDECAR, ctx.t("session.new"))
-    ctx.layout.draft({ server: SIDECAR, directory: project.canonical, prompt: "" })
+      if (!project) return ctx.layout.project(SIDECAR, ctx.t("session.new"))
+      ctx.layout.draft({ server: SIDECAR, directory: project.canonical, prompt: "" })
+    } catch {
+      ctx.toast.show({ title: ctx.t("session.failed", { project: name }) })
+    }
   }
 
   const add = (name) =>
@@ -90,9 +94,11 @@ function setup(ctx) {
       name,
       label: ctx.t("session.newIn", { project: name }),
       icon: icon("plus", { size: "small" }),
-      onSelect: () =>
-        void start(name).catch(() => ctx.toast.show({ title: ctx.t("session.failed", { project: name }) })),
+      onSelect: () => void start(name),
     })
+
+  // The context menu of a session row has no icons.
+  const newSession = (name) => menu.item({ label: ctx.t("session.new"), onSelect: () => void start(name) })
 
   const run = (directory, command) => shell.run(ctx.client, directory, command)
 
@@ -283,6 +289,7 @@ function setup(ctx) {
     sidebar.shelve(shelf.value.archivedOpen)
     sidebar.layout(groups.value.enabled, working.value.inline)
     sidebar.plus(add)
+    sidebar.menu(newSession)
     pr.show({
       lookup: pull,
       open: (url) => openGitHub(url) || ctx.system.openExternal(url),
@@ -357,8 +364,9 @@ function setup(ctx) {
   ctx.add(Slot, {
     at: "session.location.menu",
     order: 100,
-    render: (input) =>
-      newSessionRow({
+    render: (input) => [
+      menu.separator(),
+      menu.item({
         label: ctx.t("session.new"),
         icon: icon("edit", { class: "shrink-0 text-v2-icon-icon-muted" }),
         shortcut: ctx.keybinds.keybind(NEW_TAB).join(""),
@@ -367,6 +375,7 @@ function setup(ctx) {
           ctx.layout.draft({ server: input.session.server.id, directory: input.session.directory, prompt: "" })
         },
       }),
+    ],
   })
   ctx.add(Command, () => ({
     id: "toggle-archived",
