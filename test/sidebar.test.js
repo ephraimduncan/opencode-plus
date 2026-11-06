@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest"
-import { button, layout, plus } from "../src/sidebar.js"
+import { button, layout, menu, plus } from "../src/sidebar.js"
 
 // A session row as the app's sidebar renders it (OpenCode Desktop 2.2.5, inbox.tsx).
 const row = (project, title, status = "ready") =>
@@ -122,4 +122,40 @@ test("a click on the + button starts a session without opening the row", () => {
 
   expect(started).toHaveBeenCalledTimes(2)
   expect(opened).not.toHaveBeenCalled()
+})
+
+// Catches an item in the wrong menu, for the wrong project, or added again on each pass: only the context menu of a
+// session row gets the item, first, once. Kobalte names a context menu's trigger and content from one id.
+test("puts one item first in the context menu of a session row only", () => {
+  render([
+    ["roadmap-sync", "R1"],
+    ["telemetry.dev", "T1"],
+  ])
+  titled("T1").id = "contextmenu-cl-4-trigger"
+  const content = (id, items) =>
+    `<div data-component="menu-v2-content" role="menu" id="${id}">` +
+    items.map((label) => `<div role="menuitem" data-component="menu-v2-item">${label}</div>`).join("") +
+    `</div>`
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<button type="button" id="dropdownmenu-cl-2-trigger">main</button>` +
+      content("contextmenu-cl-4-content-cl-9", ["Archive", "Delete…"]) +
+      content("dropdownmenu-cl-2-content-cl-3", ["main", "dev"]),
+  )
+  const create = (name) => {
+    const element = document.createElement("div")
+    element.textContent = `New session in ${name}`
+    return element
+  }
+
+  menu(create)
+  menu(create)
+
+  const items = Array.from(document.querySelectorAll('[role="menu"]'), (element) =>
+    Array.from(element.children, (child) => child.textContent),
+  )
+  expect(items).toEqual([
+    ["New session in telemetry.dev", "Archive", "Delete…"],
+    ["main", "dev"],
+  ])
 })

@@ -23,6 +23,9 @@ const INLINE = "data-plus-inline"
 // A group heading's + button. It sits in the group's first row, so hovering it must not count as hovering the row.
 const ADD = "data-plus-add"
 
+// The item that `menu` adds to the context menu of a row.
+const ITEM = "data-plus-item"
+
 // Rows that recede: finished and already seen (`ready`), and not open, hovered, focused, or archived. Unseen results
 // (`done`, `failed`) stay bright until opened.
 const DIM = `${INBOX} ${ROW}[data-status="ready"]:not([data-state="active"], :hover:not(:has([${ADD}]:hover)), :focus-visible, [${SHELF}] > *)`
@@ -387,10 +390,24 @@ export function control(element, onSelect) {
   })
 }
 
+// Puts an item, made by `create` for the project's name, first in the context menu of each row. The menu is the app's
+// own, in a portal. Kobalte gives a row the id `<menu>-trigger` and its open menu the id `<menu>-content-<n>`.
+export function menu(create) {
+  document.querySelectorAll('[data-component="menu-v2-content"][id*="-content-"]').forEach((content) => {
+    if (content.querySelector(`:scope > [${ITEM}]`)) return
+    const row = document.getElementById(content.id.replace(/-content-.*/, "-trigger"))
+
+    if (!row?.matches(ROW)) return
+    const item = create(project(row))
+    item.setAttribute(ITEM, "")
+    content.prepend(item)
+  })
+}
+
 // Removes every change the sidebar functions made, as when the plugin stops.
 export function clean() {
   layout(false, false)
-  document.querySelectorAll(`[${ADD}]`).forEach((element) => element.remove())
+  document.querySelectorAll(`[${ADD}], [${ITEM}]`).forEach((element) => element.remove())
   document.querySelectorAll(`[${SHELF}]`).forEach((section) => section.removeAttribute(SHELF))
   document.querySelectorAll(`[${TOGGLE}]`).forEach((header) => {
     ;[TOGGLE, COUNT, "role", "tabindex", "aria-expanded"].forEach((name) => header.removeAttribute(name))

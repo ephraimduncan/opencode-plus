@@ -10,6 +10,7 @@ The plugin works with OpenCode Desktop 2.2.5.
 
 - The sessions of each project show together. A project with two or more sessions gets a heading with the project badge and a `+` button.
 - The `+` button starts a new session in that project.
+- A right-click on a session opens its menu. The plugin adds "New session" at the top of the menu, above "Archive" and "Delete…". This item starts a new session in the project of that session, as the `+` button does.
 - Working sessions show at the top of their project, with a blue "Working" status.
 - After you open a finished session, the sidebar shows it dim. A finished session that you did not open stays bright.
 - The "Archived" section stays closed, at the bottom of the list. Click its heading to open it.
