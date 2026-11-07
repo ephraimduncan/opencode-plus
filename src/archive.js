@@ -189,7 +189,7 @@ export function archive(ctx, after) {
   const watch = async () => {
     while (!signal.aborted) {
       try {
-        const events = ctx.client.event.subscribe({ types: EVENTS }, { signal })
+        const events = ctx.client.event.subscribe({ types: EVENTS, signal })
 
         for await (const event of events) void handle(event).catch(report)
       } catch (error) {

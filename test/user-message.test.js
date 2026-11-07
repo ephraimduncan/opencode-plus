@@ -7,17 +7,22 @@ beforeEach(() => {
   document.body.innerHTML = ""
 })
 
-// A message as the app renders it (OpenCode Desktop 2.2.5, message-content.tsx): its text, then its actions row with
-// the Revert button and the `⋯` menu's trigger.
+// The trigger of a message's menu: a chevron with no text.
+const chevron =
+  `<span data-slot="user-message-menu"><button type="button" data-component="icon-button-v2" aria-haspopup="true" ` +
+  `aria-label="More actions"><svg data-slot="icon-svg"></svg></button></span>`
+
+// A message as the app renders it (OpenCode Desktop 2.2.6, message-content.tsx). A message with text has its menu at
+// the end of its text; a message with no text has it in its footer, after the agent and model.
 const message = (text) =>
   `<div data-component="user-message">` +
-  (text ? `<div data-slot="user-message-body"><div data-slot="user-message-text" dir="auto">${text}</div></div>` : "") +
-  `<div data-slot="user-message-copy-wrapper"><span data-slot="user-message-actions">` +
-  `<span data-slot="user-message-transition" data-active="true"><span data-slot="user-message-transition-inner">` +
-  `<div data-component="tooltip-v2-trigger"><button aria-label="Revert message"></button></div>` +
-  `</span></span>` +
-  `<div data-component="tooltip-v2-trigger"><button aria-haspopup="true" aria-label="More actions"></button></div>` +
-  `</span></div></div>`
+  (text
+    ? `<div data-slot="user-message-body"><div data-slot="user-message-text" dir="auto">${text}${chevron}</div></div>`
+    : "") +
+  `<div data-slot="user-message-copy-wrapper"><span data-slot="user-message-meta-wrap"><span data-slot="user-message-meta">` +
+  `<span data-slot="user-message-meta-label">Build · Claude Opus 5.5</span></span></span>` +
+  (text ? "" : chevron) +
+  `</div></div>`
 
 // Stand-ins for the app's components, which only the app provides: a tooltip that shows its child, and a button that
 // keeps its accessible name in step with its `label`, as the app's does.
@@ -48,9 +53,9 @@ test("puts one Copy button before the menu of each message with text", () => {
   copy(fill())
   copy(fill())
 
-  const [withText, withoutText] = document.querySelectorAll('[data-slot="user-message-actions"]')
-  expect(labels(withText)).toEqual(["Revert message", "Copy message", "More actions"])
-  expect(labels(withoutText)).toEqual(["Revert message", "More actions"])
+  const [withText, withoutText] = document.querySelectorAll('[data-slot="user-message-menu"]')
+  expect(labels(withText)).toEqual(["Copy message", "More actions"])
+  expect(labels(withoutText)).toEqual(["More actions"])
 })
 
 // Catches a copy that differs from what was sent: a session's title instead of its reference, the fold's toggle text,
