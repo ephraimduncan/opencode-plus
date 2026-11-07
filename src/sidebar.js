@@ -1,24 +1,32 @@
-import { chevron, mark, set } from "./dom.js"
+import { mark } from "./dom.js"
 
-// The session sidebar has no plugin API, so this works on its markup (OpenCode Desktop 2.2.5). Rows are
-// `[data-slot="sidebar-inbox-item"]`, and each row's first line holds the project's badge, name, and time or status.
-// The session list holds the Needs attention section, the finished rows, and the Archived section: its only direct
-// child with `pt-3`, headed by its first child. Working rows sit in their own section below the list, behind a toggle
-// button.
+// The session sidebar has no plugin API, so this works on its markup (OpenCode Desktop 2.2.6, the Inbox layout). A row
+// `[data-slot="sidebar-inbox-item"]` has two lines: the project's badge and the session's title, then the project's
+// name, its worktree and branch icons, and the status and time. The scrolling list holds the open session when no
+// section shows it, the Needs attention, Unread, and Recent sections, then the Archived button. Working rows sit in
+// their own section below the list, behind a toggle button. Each section is a `role="group"` that holds its heading,
+// then a div with its rows; the id of the heading ends in the section's name.
 
 const INBOX = '[data-slot="sidebar-inbox"]'
 const SCROLL = '[data-slot="sidebar-inbox-scroll"]'
 const WORKING = '[data-slot="sidebar-inbox-working"]'
-const SECTION = `${SCROLL} > div.pt-3`
 export const ROW = '[data-slot="sidebar-inbox-item"]'
 
-const SHELF = "data-plus-shelf"
-const TOGGLE = "data-plus-toggle"
-const COUNT = "data-plus-count"
+const section = (name) => `[role="group"][aria-labelledby$="-${name}"]`
+const NEEDS = section("needs")
+// The Unread and Recent sections, whose rows the plugin puts in one list.
+const FINISHED = `:is(${section("unread")}, ${section("recent")})`
+
+const TITLE = ":scope > span:first-child > span[dir]"
+const NAME = ":scope > span:nth-of-type(2) > span:first-of-type > span[dir]"
+
+// On the sidebar while the Unread and Recent rows form one list, and while working rows join it.
+const JOIN = "data-plus-join"
+const INLINE = "data-plus-inline"
+
 const GROUP = "data-plus-group"
 const GAP = "data-plus-gap"
 const MEMBER = "data-plus-member"
-const INLINE = "data-plus-inline"
 
 // A group heading's + button. It sits in the group's first row, so hovering it must not count as hovering the row.
 const ADD = "data-plus-add"
@@ -26,20 +34,30 @@ const ADD = "data-plus-add"
 // The item that `menu` adds to the context menu of a row.
 const ITEM = "data-plus-item"
 
-// Rows that recede: finished and already seen (`ready`), and not open, hovered, focused, or archived. Unseen results
-// (`done`, `failed`) stay bright until opened.
-const DIM = `${INBOX} ${ROW}[data-status="ready"]:not([data-state="active"], :hover:not(:has([${ADD}]:hover)), :focus-visible, [${SHELF}] > *)`
+// Rows that recede: finished and already seen (`ready`), and not open, hovered, or focused. Unseen results (`done`,
+// `failed`) stay bright until opened.
+const DIM = `${INBOX} ${ROW}[data-status="ready"]:not([data-state="active"], :hover:not(:has([${ADD}]:hover)), :focus-visible)`
 
-// With working rows in the list, the session list and the Working section dissolve into the sidebar, which scrolls
-// instead, so `order` can place working rows among the finished ones.
+// In one list, the rows of the Unread and Recent sections become rows of the scrolling list, so `order` can place them,
+// and the Show more and Archived buttons follow them. With working rows in the list, the scrolling list and the Working
+// section dissolve into the sidebar, which scrolls instead.
 export const css = `
-${SECTION} {
+${INBOX}[${JOIN}] ${FINISHED},
+${INBOX}[${JOIN}] ${FINISHED} > div:not([id]) {
+  display: contents;
+}
+${INBOX}[${JOIN}] ${FINISHED} > div[id] {
+  display: none;
+}
+${INBOX}[${JOIN}] ${FINISHED} > button {
   order: 100000;
-  margin-top: auto;
+}
+${INBOX}[${JOIN}] ${SCROLL} > div.pt-3 {
+  order: 100001;
 }
 ${INBOX}[${INLINE}] {
   overflow-y: auto;
-  gap: 1px;
+  gap: 2px;
   padding-bottom: 4px;
 }
 [${INLINE}] > ${SCROLL},
@@ -47,125 +65,56 @@ ${INBOX}[${INLINE}] {
 [${INLINE}] > ${WORKING} > div {
   display: contents;
 }
-[${INLINE}] > ${WORKING} > button {
+[${INLINE}] > ${WORKING} > :not(div) {
   display: none;
 }
-[${SHELF}] > [${TOGGLE}] {
-  border-radius: 6px;
-}
-[${SHELF}] > [${TOGGLE}]:hover {
-  color: var(--color-v2-text-text-base);
-}
-[${SHELF}] > [${TOGGLE}]:focus-visible {
-  outline: none;
-  background-color: var(--color-v2-overlay-simple-overlay-hover);
-}
-[${SHELF}] > [${TOGGLE}]::before {
-  content: attr(${COUNT});
-  order: 1;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-v2-text-text-faint);
-}
-[${SHELF}] > [${TOGGLE}]::after {
-  content: "";
-  order: 2;
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  margin-inline-start: auto;
-  background-color: currentColor;
-  mask: url("data:image/svg+xml,${encodeURIComponent(chevron)}") center / 16px no-repeat;
-}
-[${SHELF}="closed"] > [${TOGGLE}]::after {
-  rotate: -90deg;
-}
-[${SHELF}="closed"] > [${TOGGLE}]:dir(rtl)::after {
-  rotate: 90deg;
-}
-[${SHELF}="closed"] > ${ROW}:not([data-state="active"]) {
-  display: none;
-}
-${INBOX} ${ROW}[data-status="working"] {
-  opacity: 1;
-}
-${INBOX} ${ROW}[data-status="working"] > span:nth-of-type(2) {
-  color: var(--color-v2-text-text-base);
-}
-/* T3 Code's Working colors: sky-600 text and a sky-500 pulsing dot, or sky-300 at 80% in dark mode. */
+/* T3 Code's Working color: sky-600, or sky-300 at 80% in dark mode. */
 ${INBOX} {
   --plus-working: oklch(58.8% 0.158 241.966);
-  --plus-working-dot: oklch(68.5% 0.169 237.323);
-  --plus-working-peak: oklch(74.6% 0.16 232.661);
 }
 [data-color-scheme="dark"] ${INBOX} {
   --plus-working: oklch(82.8% 0.111 230.318 / 0.8);
-  --plus-working-dot: oklch(82.8% 0.111 230.318 / 0.8);
-  --plus-working-peak: oklch(95.1% 0.026 236.824);
 }
-${INBOX} ${ROW}[data-status="working"] > span:first-child > span:last-child {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+${INBOX} ${ROW}[data-status="working"] > span:nth-of-type(2) > span:last-of-type > * {
   color: var(--plus-working);
 }
-${INBOX} ${ROW}[data-status="working"] > span:first-child > span:last-child > span {
-  color: inherit;
-}
-${INBOX} ${ROW}[data-status="working"] [data-component="text-shimmer"] {
-  --text-shimmer-base-color: var(--plus-working);
-  --text-shimmer-peak-color: var(--plus-working-peak);
-}
-${INBOX} ${ROW}[data-status="working"] > span:first-child > span:last-child::before {
-  content: "";
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background-color: var(--plus-working-dot);
-  animation: plus-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-@keyframes plus-pulse {
-  50% {
-    opacity: 0.5;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  ${INBOX} ${ROW}[data-status="working"] > span:first-child > span:last-child::before {
-    animation: none;
-  }
-}
 ${INBOX} ${ROW} > span,
-${INBOX} ${ROW} > span:first-child > span {
+${INBOX} ${ROW} > span > * {
   transition: opacity 150ms;
 }
 ${DIM}:not([${MEMBER}]) > span,
-${DIM}[${MEMBER}] > span:not(:first-child),
-${DIM}[${MEMBER}] > span:first-child > span:last-child {
+${DIM}[${MEMBER}] > span:first-child > span[dir],
+${DIM}[${MEMBER}] > span:nth-of-type(2) {
   opacity: 0.6;
 }
-/* In a project group the heading names the project, so rows drop their project line and show the time beside the
-   title: the first line dissolves into the row's grid, keeping only its last part, the time or status. */
+/* In a project group the heading names the project, so a row drops the project's badge and name, and shows its title
+   on one line with the worktree icon, the status, and the time at its end. The branch icon goes too: every session in
+   a repository has one, and it names the branch only in its tooltip. */
 ${ROW}[${MEMBER}] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "title status";
+  align-items: center;
   column-gap: 8px;
+  height: auto;
 }
-${ROW}[${MEMBER}] > span:first-child {
+${ROW}[${MEMBER}] > span:first-child,
+${ROW}[${MEMBER}] > span:nth-of-type(2) > span:first-of-type {
   display: contents;
 }
-${ROW}[${MEMBER}] > span:first-child > span:not(:last-child) {
+${ROW}[${MEMBER}]:not([${GROUP}]) > span:first-child > span:first-child,
+${ROW}[${MEMBER}] > span:nth-of-type(2) > span:first-of-type > span[dir],
+${ROW}[${MEMBER}] > span:nth-of-type(2) > span:first-of-type > div:has(use[href$="-branch"]),
+${ROW}[${MEMBER}] > span:nth-of-type(2) > div {
   display: none;
 }
-${ROW}[${MEMBER}] > span:first-child > span:last-child {
-  grid-area: status;
-}
-${ROW}[${MEMBER}] > span:nth-of-type(2) {
+${ROW}[${MEMBER}] > span:first-child > span[dir] {
   grid-area: title;
 }
-${ROW}[${MEMBER}] > span:nth-of-type(3) {
-  grid-column: 1 / -1;
+${ROW}[${MEMBER}] > span:nth-of-type(2) {
+  grid-area: status;
+  width: auto;
+  padding-inline-start: 0;
 }
 /* The same space before every project; a group's heading takes its own 28px on top of it. */
 ${ROW}[${GAP}] {
@@ -184,9 +133,9 @@ ${ROW}[${GROUP}]::before {
   inset-inline: 0;
   bottom: 100%;
   margin-bottom: 4px;
-  padding-inline: 28px;
+  padding-inline: 32px;
   overflow: hidden;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 24px;
   white-space: nowrap;
@@ -195,18 +144,18 @@ ${ROW}[${GROUP}]::before {
   pointer-events: none;
 }
 /* The heading's project badge is the group's first row's own, moved up before the name. It lines up with the badges
-   of single-session rows: 6px in, centered on the heading's 24px line. */
+   of single-session rows: 8px in, centered on the heading's 24px line. */
 ${ROW}[${GROUP}] > span:first-child > span:first-child {
   display: flex;
   position: absolute;
-  inset-inline-start: 6px;
+  inset-inline-start: 8px;
   bottom: calc(100% + 8px);
   pointer-events: none;
 }
 /* The heading's + button, at the far end of its 24px line, its icon in line with the times of the rows below. */
 ${ROW}[${GROUP}] > [${ADD}] {
   position: absolute;
-  inset-inline-end: 4px;
+  inset-inline-end: 6px;
   bottom: calc(100% + 6px);
   display: flex;
   align-items: center;
@@ -226,58 +175,34 @@ ${ROW}[${GROUP}]:not([data-state="active"]):has(> [${ADD}]:hover) {
 }
 `
 
-const rows = (list) => (list ? Array.from(list.children).filter((child) => child.matches(ROW)) : [])
+// The session's title, as its row shows it.
+export const title = (row) => row.querySelector(TITLE)?.textContent.trim()
 
-export const project = (row) => row.querySelector(":scope > span:first-child > span.truncate")?.textContent?.trim()
+// The name of the session's project, as its row shows it.
+export const project = (row) => row.querySelector(NAME)?.textContent.trim()
 
-const ungroup = (row) => {
-  row.style.removeProperty("order")
-  if (row.style.length === 0) row.removeAttribute("style")
-  row.removeAttribute(GROUP)
-  row.removeAttribute(GAP)
-  row.removeAttribute(MEMBER)
-}
+// Groups the rows of each section by project when `grouped`. The Unread and Recent rows then form one list, and with
+// `inline`, working rows join it instead of their own section.
+export function layout(grouped, inline) {
+  document.querySelectorAll(INBOX).forEach((inbox) => {
+    const rows = (selector) => Array.from(inbox.querySelectorAll(`${selector} > div > ${ROW}`))
+    const finished = rows(FINISHED)
+    const needs = rows(NEEDS)
+    const working = rows(WORKING)
 
-// Marks up the Archived section as a collapsible shelf.
-export function shelve(open) {
-  const state = open ? "open" : "closed"
+    mark(inbox, JOIN, grouped || inline ? "" : undefined)
+    mark(inbox, INLINE, inline ? "" : undefined)
+    // A collapsed Working section renders no rows.
+    if (inline) inbox.querySelector(`:scope > ${WORKING} > button[aria-expanded="false"]`)?.click()
 
-  document.querySelectorAll(SECTION).forEach((section) => {
-    const header = section.firstElementChild
+    arrange(finished, grouped, inline ? working : [])
+    arrange(needs, grouped)
+    if (!inline) arrange(working, grouped)
 
-    if (!header || header.matches(ROW)) return
-
-    set(section, SHELF, state)
-    set(header, TOGGLE, "")
-    set(header, COUNT, String(rows(section).length))
-    set(header, "role", "button")
-    set(header, "tabindex", "0")
-    set(header, "aria-expanded", String(open))
+    // The open session, when no section shows it.
+    const placed = new Set([...finished, ...needs, ...working])
+    inbox.querySelectorAll(ROW).forEach((row) => placed.has(row) || ungroup(row))
   })
-}
-
-// Runs `toggle` when the Archived heading is clicked, or pressed with Enter or Space. Returns the cleanup.
-export function listen(toggle) {
-  const header = (event) =>
-    event.target instanceof Element ? event.target.closest(`${SECTION} > [${TOGGLE}]`) : null
-
-  const click = (event) => {
-    if (header(event)) toggle()
-  }
-
-  const key = (event) => {
-    if ((event.key !== "Enter" && event.key !== " ") || !header(event)) return
-    event.preventDefault()
-    toggle()
-  }
-
-  document.addEventListener("click", click)
-  document.addEventListener("keydown", key)
-
-  return () => {
-    document.removeEventListener("click", click)
-    document.removeEventListener("keydown", key)
-  }
 }
 
 // Orders rows by project, most recently active project first, with the same space before each project. A project with
@@ -314,37 +239,12 @@ const arrange = (finished, grouped, working = []) => {
   })
 }
 
-// Groups each list by project when `grouped`, and with `inline`, shows working sessions in the session list instead
-// of in their own section.
-export function layout(grouped, inline) {
-  document.querySelectorAll(INBOX).forEach((inbox) => {
-    const scroll = inbox.querySelector(`:scope > ${SCROLL}`)
-    const working = inbox.querySelector(`:scope > ${WORKING} > div`)
-    const merged = new Set()
-
-    if (inline) {
-      set(inbox, INLINE, "")
-      // A collapsed Working section renders only the open session.
-      inbox.querySelector(`:scope > ${WORKING} > button[aria-expanded="false"]`)?.click()
-      arrange(rows(scroll), grouped, rows(working))
-      merged.add(scroll).add(working)
-    } else {
-      inbox.removeAttribute(INLINE)
-    }
-
-    new Set(Array.from(inbox.querySelectorAll(ROW), (row) => row.parentElement)).forEach((list) => {
-      if (merged.has(list)) return
-
-      // A collapsed Archived section shows only the open session.
-      const closed = list.getAttribute(SHELF) === "closed"
-      const shown = rows(list).filter((row) => !closed || row.getAttribute("data-state") === "active")
-
-      rows(list)
-        .filter((row) => !shown.includes(row))
-        .forEach(ungroup)
-      arrange(shown, grouped)
-    })
-  })
+const ungroup = (row) => {
+  row.style.removeProperty("order")
+  if (row.style.length === 0) row.removeAttribute("style")
+  row.removeAttribute(GROUP)
+  row.removeAttribute(GAP)
+  row.removeAttribute(MEMBER)
 }
 
 // Gives each group heading a + button, made by `create` for the project's name. The button lives in the group's first
@@ -390,14 +290,16 @@ export function control(element, onSelect) {
   })
 }
 
-// Puts an item, made by `create` for the project's name, first in the context menu of each row. The menu is the app's
-// own, in a portal. Kobalte gives a row the id `<menu>-trigger` and its open menu the id `<menu>-content-<n>`.
+// Puts an item, made by `create` for the project's name, first in the context menu of the row whose menu is open. The
+// menu is the app's own, in a portal. Kobalte marks the row of an open context menu with `data-expanded`, and gives the
+// menu an id that starts with `contextmenu-`.
 export function menu(create) {
-  document.querySelectorAll('[data-component="menu-v2-content"][id*="-content-"]').forEach((content) => {
-    if (content.querySelector(`:scope > [${ITEM}]`)) return
-    const row = document.getElementById(content.id.replace(/-content-.*/, "-trigger"))
+  const row = document.querySelector(`${INBOX} ${ROW}[data-expanded]`)
 
-    if (!row?.matches(ROW)) return
+  if (!row) return
+
+  document.querySelectorAll('[data-component="menu-v2-content"][id^="contextmenu-"]').forEach((content) => {
+    if (content.querySelector(`:scope > [${ITEM}]`)) return
     const item = create(project(row))
     item.setAttribute(ITEM, "")
     content.prepend(item)
@@ -408,8 +310,4 @@ export function menu(create) {
 export function clean() {
   layout(false, false)
   document.querySelectorAll(`[${ADD}], [${ITEM}]`).forEach((element) => element.remove())
-  document.querySelectorAll(`[${SHELF}]`).forEach((section) => section.removeAttribute(SHELF))
-  document.querySelectorAll(`[${TOGGLE}]`).forEach((header) => {
-    ;[TOGGLE, COUNT, "role", "tabindex", "aria-expanded"].forEach((name) => header.removeAttribute(name))
-  })
 }

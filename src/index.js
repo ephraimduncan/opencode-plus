@@ -13,6 +13,7 @@ import { github, strings as githubStrings } from "./github/index.jsx"
 import * as links from "./links.js"
 import * as menu from "./menu.js"
 import * as pr from "./pr.js"
+import { sessions } from "./sessions.js"
 import { settings } from "./settings.js"
 import * as shell from "./shell.js"
 import * as sidebar from "./sidebar.js"
@@ -38,7 +39,7 @@ const Archive = (id) => Ipc.define({ id: `${id}.archive`, methods: { sweep: {} }
 // pass over the page applies every change after each change to the page.
 function setup(ctx) {
   const options = settings(ctx.options)
-  const { shelf, groups, working } = ctx.stores
+  const { groups, working } = ctx.stores
 
   // Fills `parent` with the app's icon `name`.
   const icon = (name, props) => (parent) => insert(parent, () => createComponent(ctx.ui.Icon, { name, ...props }))
@@ -61,17 +62,12 @@ function setup(ctx) {
     }
   }
 
-  const toggle = () =>
-    shelf.update((draft) => {
-      draft.archivedOpen = !draft.archivedOpen
-    })
+  // The name of `project` in the sidebar: its name, else its folder's.
+  const named = (project) => project.name || project.canonical.split("/").pop()
 
-  // The most recently active project that the sidebar names `name`, the way it names projects: the project's name,
-  // else its folder's.
+  // The most recently active project that the sidebar names `name`.
   const find = async (name) => {
-    const projects = (await ctx.client.project.list()).filter(
-      (project) => (project.name || project.canonical.split("/").pop()) === name,
-    )
+    const projects = (await ctx.client.project.list()).filter((project) => named(project) === name)
 
     return projects.toSorted((a, b) => b.time.active - a.time.active)[0]
   }
@@ -102,17 +98,39 @@ function setup(ctx) {
 
   const run = (directory, command) => shell.run(ctx.client, directory, command)
 
-  // The pull request of `branchName` in the project the sidebar names `name`, as GitHub's `gh` command finds it.
-  // Undefined when the branch has none, or when `gh` cannot tell. A pass follows, to show what it finds.
-  const pull = async (name, branchName) => {
+  // The pull request of `branch` in `directory`, as GitHub's `gh` command finds it. Undefined when the branch has none,
+  // or when `gh` cannot tell. A pass follows, to show what it finds.
+  const pull = async ({ directory, branch }) => {
     try {
-      const project = await find(name)
-      const listed = project && (await run(project.canonical, pr.command(branchName)))
+      const listed = await run(directory, pr.command(branch))
 
-      return listed?.ok ? pr.latest(listed.output) : undefined
+      return listed.ok ? pr.latest(listed.output) : undefined
     } finally {
       schedule()
     }
+  }
+
+  // The location of the session that a sidebar row names, among the newest root sessions, as many as the app lists.
+  const where = sessions(async () => {
+    const [page, projects] = await Promise.all([
+      ctx.client.session.list({ parentID: null, limit: 50, order: "desc" }),
+      ctx.client.project.list(),
+    ])
+    const names = new Map(projects.map((project) => [project.id, named(project)]))
+
+    return page.data.map((item) => ({
+      title: item.title,
+      project: names.get(item.projectID),
+      location: item.location,
+    }))
+  }, () => schedule())
+
+  // The folder and branch of the session that `row` shows, as the app knows them. Undefined when it cannot tell.
+  const locate = (row) => {
+    const location = where(sidebar.title(row), sidebar.project(row))
+    const branch = location && ctx.servers.get(SIDECAR)?.data.location.vcs.info(location)?.branch.current
+
+    return branch ? { directory: location.directory, branch } : undefined
   }
 
   // The branches of the folder that `label` names, or undefined when git cannot list them there.
@@ -286,11 +304,11 @@ function setup(ctx) {
   const openGitHub = options.github ? github(ctx, { run, browse: visit, changed }) : () => false
 
   const sync = () => {
-    sidebar.shelve(shelf.value.archivedOpen)
     sidebar.layout(groups.value.enabled, working.value.inline)
     sidebar.plus(add)
     sidebar.menu(newSession)
     pr.show({
+      locate,
       lookup: pull,
       open: (url) => openGitHub(url) || ctx.system.openExternal(url),
       label: ({ number, state, title }) => ctx.t("pr.label", { number, state: ctx.t(`pr.${state}`), title }),
@@ -331,7 +349,6 @@ function setup(ctx) {
   const refresh = setInterval(schedule, MINUTE)
   // `scrollend` does not bubble, so only a capturing listener on the document sees it.
   document.addEventListener("scrollend", schedule, true)
-  const unlisten = sidebar.listen(toggle)
   // The usage card follows the open session while it shows.
   const unlistenUsage = usage.listen((card) =>
     createRoot((dispose) => {
@@ -346,10 +363,7 @@ function setup(ctx) {
   )
   const unlistenLinks = links.listen((url) => openGitHub(url) || browse(url))
 
-  createKeyed(
-    () => `${shelf.value.archivedOpen}:${groups.value.enabled}:${working.value.inline}:${running()}`,
-    sync,
-  )
+  createKeyed(() => `${groups.value.enabled}:${working.value.inline}:${running()}`, sync)
 
   if (options.workflows) workflows(ctx)
 
@@ -378,12 +392,6 @@ function setup(ctx) {
     ],
   })
   ctx.add(Command, () => ({
-    id: "toggle-archived",
-    title: ctx.t(shelf.value.archivedOpen ? "archived.hide" : "archived.show"),
-    keywords: "archive archived settled sessions sidebar inbox",
-    run: toggle,
-  }))
-  ctx.add(Command, () => ({
     id: "toggle-groups",
     title: ctx.t(groups.value.enabled ? "groups.off" : "groups.on"),
     keywords: "group project projects folders sessions sidebar inbox",
@@ -410,7 +418,6 @@ function setup(ctx) {
     clearTimeout(retry)
     clearInterval(refresh)
     document.removeEventListener("scrollend", schedule, true)
-    unlisten()
     unlistenUsage()
     unlistenLinks()
     sidebar.clean()
@@ -439,14 +446,11 @@ function main(ctx) {
 
 export default Plugin.define({
   stores: {
-    shelf: Store.global(Schema.Struct({ archivedOpen: Schema.Boolean }), { archivedOpen: false }),
     groups: Store.global(Schema.Struct({ enabled: Schema.Boolean }), { enabled: true }),
     working: Store.global(Schema.Struct({ inline: Schema.Boolean }), { inline: true }),
   },
   i18n: {
     en: {
-      "archived.show": "Show archived sessions",
-      "archived.hide": "Hide archived sessions",
       "groups.on": "Group sessions by project",
       "groups.off": "Stop grouping sessions by project",
       "working.inline": "Show working sessions in the list",

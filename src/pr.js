@@ -1,13 +1,12 @@
 import { quote } from "./branch.js"
 import { set } from "./dom.js"
-import { ROW, control, project } from "./sidebar.js"
+import { ROW, control } from "./sidebar.js"
 
-// A session row's third line names the branch of its folder (OpenCode Desktop 2.2.5): one span holds the branch icon,
-// then the name. A row of a session on another server ends the line with a server icon, which `ms-auto` pushes to the
-// end. The badge of the branch's pull request follows the branch, like T3 Code's badge.
+// When the folder of a session has a branch, the second line of its row shows a branch icon after the project's name
+// (OpenCode Desktop 2.2.6). The icon is a tooltip, which names the branch only while the pointer rests on it. The badge
+// of the branch's pull request follows the icon, like T3 Code's badge.
 
-const LINE = `${ROW} > span:nth-of-type(3)`
-const NAME = ':scope > span > span[dir="ltr"]'
+const ICON = ':scope > span:nth-of-type(2) > span:first-of-type > [data-component="tooltip-v2-trigger"] use[href$="-branch"]'
 
 const BADGE = "data-plus-pr"
 const LINK = "data-plus-pr-url"
@@ -45,13 +44,11 @@ export const css = `
   flex-shrink: 0;
   align-items: center;
   gap: 4px;
-  margin-inline-start: auto;
   padding-inline: 2px;
   border-radius: 4px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
-}
-[${BADGE}] ~ .ms-auto {
-  margin-inline-start: 0;
+  color: var(--color-v2-text-text-faint);
 }
 [${BADGE}]:is(:hover, :focus-visible) {
   outline: none;
@@ -146,7 +143,7 @@ const pick = (list) => {
   return sorted.find((pull) => pull.state === "open" || pull.state === "draft") ?? sorted[0]
 }
 
-// Each project and branch's pull request: when its lookup ended, and what it found. A lookup under way has no `time`.
+// Each folder and branch's pull request: when its lookup ended, and what it found. A lookup under way has no `time`.
 const found = new Map()
 
 // The branches that a working session was on at the last pass.
@@ -155,20 +152,20 @@ let working = new Set()
 // Lookups run one at a time.
 let queue = Promise.resolve()
 
-// Shows a badge after the branch of each session row whose branch has a pull request. `lookup(project, branch)`
-// resolves to the pull request, as `latest` gives it, and the next pass shows what it found. A click on a badge runs
+// Shows a badge after the branch icon of each session row whose branch has a pull request. `locate(row)` gives the
+// row's folder and branch as `{ directory, branch }`, or undefined when it cannot tell. `lookup(place)` resolves to the
+// pull request of that branch, as `latest` gives it, and the next pass shows what it found. A click on a badge runs
 // `open(url)`, and `label(pull)` gives the badge its tooltip.
-export function show({ lookup, open, label }) {
+export function show({ locate, lookup, open, label }) {
   const now = Date.now()
-  const lines = Array.from(document.querySelectorAll(LINE), (line) => {
-    const name = line.querySelector(NAME)
-    const branch = name?.textContent.trim()
-    const row = line.parentElement
+  const rows = Array.from(document.querySelectorAll(ROW), (row) => {
+    const icon = row.querySelector(ICON)?.closest('[data-component="tooltip-v2-trigger"]')
+    const place = icon && locate(row)
 
-    return { line, row, branch, key: branch && `${project(row)}\n${branch}`, holder: name?.parentElement }
+    return { row, icon, place, key: place && `${place.directory}\n${place.branch}` }
   })
   const busy = new Set(
-    lines.filter(({ row, key }) => key && row.getAttribute("data-status") === "working").map(({ key }) => key),
+    rows.filter(({ row, key }) => key && row.getAttribute("data-status") === "working").map(({ key }) => key),
   )
 
   // A session that stops working may have made a pull request.
@@ -179,12 +176,11 @@ export function show({ lookup, open, label }) {
   })
   working = busy
 
-  lines.forEach(({ line, row, branch, key, holder }) => {
+  rows.forEach(({ row, icon, place, key }) => {
     const entry = key && found.get(key)
-    let badge = line.querySelector(`:scope > [${BADGE}]`)
+    let badge = row.querySelector(`[${BADGE}]`)
 
-    if (key && (!entry || (entry.time !== undefined && now - entry.time >= STALE)))
-      load(key, () => lookup(project(row), branch))
+    if (key && (!entry || (entry.time !== undefined && now - entry.time >= STALE))) load(key, () => lookup(place))
 
     const pull = entry?.pull
 
@@ -198,7 +194,7 @@ export function show({ lookup, open, label }) {
 
     const text = label(pull)
 
-    if (badge.previousElementSibling !== holder) holder.after(badge)
+    if (badge.previousElementSibling !== icon) icon.after(badge)
     set(badge, BADGE, pull.state)
     set(badge, LINK, pull.url)
     set(badge, "title", text)

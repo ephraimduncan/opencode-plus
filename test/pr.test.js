@@ -3,19 +3,31 @@ import { join } from "node:path"
 import { beforeEach, expect, test, vi } from "vitest"
 import { answer, clean, latest, show } from "../src/pr.js"
 
-// A session row as the app's sidebar renders it, with its branch line (OpenCode Desktop 2.2.5, inbox.tsx).
-const row = (project, title, branch, status = "ready") =>
-  `<button type="button" data-slot="sidebar-inbox-item" data-status="${status}" class="group flex w-full flex-col">` +
-  `<span class="flex h-4 w-full min-w-0 items-center"><span class="flex size-4 shrink-0">${project[0].toUpperCase()}</span>` +
-  `<span class="min-w-0 truncate">${project}</span><span class="ms-auto shrink-0 tabular-nums">2h</span></span>` +
-  `<span dir="auto" class="w-full min-w-0 truncate">${title}</span>` +
-  `<span class="flex h-4 w-full min-w-0 items-center gap-1"><span class="flex min-w-0 items-center gap-1">` +
-  `<svg data-slot="icon-svg"></svg><span dir="ltr" class="min-w-0 truncate">${branch}</span></span></span></button>`
+// A session row as the app's sidebar renders it (OpenCode Desktop 2.2.6, inbox.tsx): the worktree and branch icons
+// follow the project's name, and the branch name shows only in the tooltip of its icon.
+const row = (project, title, status = "ready") =>
+  `<button type="button" data-slot="sidebar-inbox-item" data-status="${status}" class="group flex h-[54px] flex-col">` +
+  `<span class="flex h-4 w-full min-w-0 items-center gap-2"><span class="flex size-4 shrink-0">${project[0].toUpperCase()}</span>` +
+  `<span dir="auto" class="min-w-0 flex-1 truncate">${title}</span></span>` +
+  `<span class="relative flex h-4 w-full min-w-0 items-center gap-2 ps-6">` +
+  `<span class="flex min-w-0 flex-1 items-center gap-2"><span dir="auto" class="min-w-0 truncate">${project}</span>` +
+  `<div data-component="tooltip-v2-trigger" class="flex shrink-0"><svg data-slot="icon-svg"><use href="#opencode-v2-icon-outline-worktree"></use></svg></div>` +
+  `<div data-component="tooltip-v2-trigger" class="flex shrink-0"><svg data-slot="icon-svg"><use href="#opencode-v2-icon-branch"></use></svg></div>` +
+  `</span><span class="ms-auto flex shrink-0 items-center gap-1.5"><span class="text-v2-text-text-faint">2h</span></span></span></button>`
 
 const titled = (title) =>
   Array.from(document.querySelectorAll('[data-slot="sidebar-inbox-item"]')).find(
-    (element) => element.children[1].textContent === title,
+    (element) => element.querySelector("span[dir]").textContent === title,
   )
+
+// The folder and branch of each session, by its title.
+const places = {
+  A: { directory: "/Users/ephraim/dev/opencode-plus", branch: "feat/pr" },
+  B: { directory: "/Users/ephraim/dev/opencode-plus", branch: "feat/pr" },
+  C: { directory: "/Users/ephraim/dev/opencode-plus/worktree", branch: "main" },
+}
+
+const locate = (element) => places[element.querySelector("span[dir]").textContent]
 
 // What `gh pr list --json …` prints, after the URL of `origin`.
 const output = (remote, pulls) => `${remote}\n${JSON.stringify(pulls)}\n`
@@ -32,7 +44,12 @@ const pull = (number, state, updatedAt, login = "ephraimduncan", isDraft = false
 
 const settle = () => new Promise((resolve) => setTimeout(resolve))
 
-const options = (lookup, open = () => {}) => ({ lookup, open, label: ({ number, state }) => `#${number} ${state}` })
+const options = (lookup, open = () => {}) => ({
+  locate,
+  lookup,
+  open,
+  label: ({ number, state }) => `#${number} ${state}`,
+})
 
 beforeEach(() => {
   clean()
@@ -110,12 +127,11 @@ test("an open pull request of the branch hides an older merged one in GitHub's a
   expect(answer(`${head}\r\n\r\n${JSON.stringify([merged, open])}`).pull).toMatchObject({ number: 18, state: "open" })
 })
 
-// Catches a lookup for every row and every pass: rows of one project and branch share a lookup, and the badge shows
-// after the branch name.
-test("looks up each project and branch once, and shows the pull request after the branch", async () => {
-  document.body.innerHTML =
-    row("opencode-plus", "A", "feat/pr") + row("opencode-plus", "B", "feat/pr") + row("opencode-plus", "C", "main")
-  const lookup = vi.fn(async (project, branch) =>
+// Catches a lookup for every row and every pass: rows of one folder and branch share a lookup, and the badge shows
+// after the branch icon.
+test("looks up each folder and branch once, and shows the pull request after the branch icon", async () => {
+  document.body.innerHTML = row("opencode-plus", "A") + row("opencode-plus", "B") + row("opencode-plus", "C")
+  const lookup = vi.fn(async ({ branch }) =>
     branch === "feat/pr" ? { number: 5, title: "PR 5", url: "https://example.com/5", state: "merged" } : undefined,
   )
 
@@ -123,21 +139,28 @@ test("looks up each project and branch once, and shows the pull request after th
   await settle()
   show(options(lookup))
 
-  expect(lookup.mock.calls).toEqual([
-    ["opencode-plus", "feat/pr"],
-    ["opencode-plus", "main"],
-  ])
+  expect(lookup.mock.calls).toEqual([[places.A], [places.C]])
   const badges = ["A", "B", "C"].map((title) => {
     const badge = titled(title).querySelector("[data-plus-pr]")
 
-    return badge && [badge.previousElementSibling.textContent, badge.textContent, badge.getAttribute("data-plus-pr")]
+    return (
+      badge && [
+        badge.previousElementSibling.querySelector("use").getAttribute("href"),
+        badge.textContent,
+        badge.getAttribute("data-plus-pr"),
+      ]
+    )
   })
-  expect(badges).toEqual([["feat/pr", "#5", "merged"], ["feat/pr", "#5", "merged"], null])
+  expect(badges).toEqual([
+    ["#opencode-v2-icon-branch", "#5", "merged"],
+    ["#opencode-v2-icon-branch", "#5", "merged"],
+    null,
+  ])
 })
 
 // Catches a badge that only shows a pull request made before the session ran: the agent can make one in the run.
 test("looks up the branch again when a session on it stops working", async () => {
-  document.body.innerHTML = row("opencode-plus", "A", "feat/pr", "working")
+  document.body.innerHTML = row("opencode-plus", "A", "working")
   const lookup = vi.fn(async () => undefined)
 
   show(options(lookup))
@@ -152,7 +175,7 @@ test("looks up the branch again when a session on it stops working", async () =>
 
 // Catches a click that also opens the session: the badge sits inside the session's row.
 test("a click on the badge opens the pull request without opening the row", async () => {
-  document.body.innerHTML = row("opencode-plus", "A", "feat/pr")
+  document.body.innerHTML = row("opencode-plus", "A")
   const opened = vi.fn()
   const open = vi.fn()
   const lookup = async () => ({ number: 5, title: "PR 5", url: "https://example.com/5", state: "open" })

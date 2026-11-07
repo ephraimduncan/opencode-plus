@@ -1,5 +1,6 @@
+import { OpenCode } from "@opencode/client"
 import { describe, expect, test } from "vitest"
-import { due } from "../src/archive.js"
+import { archive, due } from "../src/archive.js"
 
 const HOUR = 60 * 60 * 1000
 const NOW = Date.UTC(2026, 10, 3, 12)
@@ -74,4 +75,72 @@ describe("due after the pull request of its branch merged or closed", () => {
       want,
     )
   })
+})
+
+// A server for the client: an event stream that `send` writes to, and a session that each GET of a session returns.
+// `reads` counts those GETs.
+const server = () => {
+  const encoder = new TextEncoder()
+  const streams = []
+  const state = { reads: 0 }
+
+  const fetch = async (url, init) => {
+    const { pathname } = new URL(url)
+
+    if (pathname === "/api/event") {
+      const body = new ReadableStream({
+        start(controller) {
+          const stream = { controller, signal: init.signal }
+          streams.push(stream)
+          init.signal?.addEventListener("abort", () => controller.error(init.signal.reason))
+        },
+      })
+
+      return new Response(body, { headers: { "content-type": "text/event-stream" } })
+    }
+
+    state.reads += 1
+
+    return Response.json(session({ busy: 2, idle: 1 }))
+  }
+
+  const send = (event) =>
+    streams
+      .filter(({ signal }) => !signal?.aborted)
+      .forEach(({ controller }) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`)))
+
+  return { fetch, send, state }
+}
+
+const enqueued = (id) => ({
+  id,
+  created: Date.now(),
+  type: "session.inbox.enqueued",
+  durable: { aggregateID: "ses_e5e91886cffet0erRANhoVOfMJ", seq: 1, version: 1 },
+  data: { sessionID: "ses_e5e91886cffet0erRANhoVOfMJ", inboxID: "msg_1", item: { type: "user" } },
+})
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 10))
+
+// Catches an archive that keeps its event stream after it stops: each reload of the plugin then leaves one more copy
+// that handles every event.
+test("a stopped archive stops reacting to events", async () => {
+  const { fetch, send, state } = server()
+  const ctx = {
+    id: "opencode-plus",
+    client: OpenCode.make({ baseUrl: "http://127.0.0.1:4096", fetch }),
+    signal: new AbortController().signal,
+    log: { write: () => {} },
+  }
+  const { stop } = archive(ctx, AFTER)
+
+  await settle()
+  send(enqueued("evt_1"))
+  await settle()
+  stop()
+  await settle()
+  send(enqueued("evt_2"))
+  await settle()
+
+  expect(state.reads).toBe(1)
 })

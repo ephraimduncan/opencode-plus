@@ -2,26 +2,32 @@
 
 opencode-plus is a plugin for the OpenCode Desktop app. It puts the sessions in the sidebar into groups by project, archives finished sessions, runs dynamic workflows, shows GitHub pull requests and issues at the side of the conversation, and makes the conversation easier to read.
 
-The plugin works with OpenCode Desktop 2.2.5.
+The plugin works with OpenCode Desktop 2.2.6.
 
 ## What the plugin does
 
 ### Sidebar
 
-- The sessions of each project show together. A project with two or more sessions gets a heading with the project badge and a `+` button.
+The sidebar changes apply to the "Inbox" interface layout. You select the layout in **Settings > General**.
+
+- The unread sessions and the recent sessions show in one list, without the "Unread" and "Recent" headings.
+- The sessions of each project show together. The project with the most recent activity shows first.
+- A project with two or more sessions gets a heading with the project badge and a `+` button. Each session under a heading shows on one line, without the project name and the branch icon.
 - The `+` button starts a new session in that project.
+- The "Needs attention" section stays at the top of the sidebar. Its sessions also show in groups by project.
 - A right-click on a session opens its menu. The plugin adds "New session" at the top of the menu, above "Archive" and "Delete…". This item starts a new session in the project of that session, as the `+` button does.
-- Working sessions show at the top of their project, with a blue "Working" status.
+- Working sessions show at the top of their project, with a blue status and time.
 - After you open a finished session, the sidebar shows it dim. A finished session that you did not open stays bright.
-- The "Archived" section stays closed, at the bottom of the list. Click its heading to open it.
+- The "Show more" button and the "Archived" button show at the end of the list.
 
 ### Pull request badge
 
-- If the branch of a session has a pull request on GitHub, the sidebar shows a badge after the branch name, like T3 Code. The badge shows the number of the pull request, for example `#12`.
+- If the branch of a session has a pull request on GitHub, the sidebar shows a badge after the branch icon, like T3 Code. The badge shows the number of the pull request, for example `#12`.
 - The color and the icon of the badge show the state of the pull request: open, draft, merged, or closed.
 - If a branch has more than one pull request, the badge shows the open pull request. If no pull request is open, the badge shows the pull request with the most recent change.
 - A click on the badge opens the pull request in the GitHub panel. If you hold the pointer on the badge, the title of the pull request shows.
 - The plugin finds the pull requests with the `gh` command. The plugin does a check of each branch again after two minutes, and when a session on the branch stops its run.
+- The sidebar does not show the folder of a session. Thus, the plugin finds the session from its title and the name of its project. If sessions in two folders have the same title and project, they get no badge. A session on a different server also gets no badge.
 
 ### GitHub panel
 
@@ -56,7 +62,7 @@ The plugin works with OpenCode Desktop 2.2.5.
 ### Conversation and chat input
 
 - A "Response" divider shows above the last text of each answer from the agent, after its tool calls.
-- Each message that you send has a Copy button before its `⋯` menu. The button is the same as the Copy button below each answer from the agent.
+- Each message that you send has a Copy button before the arrow that opens its menu. The two buttons show when you hold the pointer on the text of the message. The Copy button is the same as the Copy button below each answer from the agent.
 - The agent dropdown does not show while the agent is `build`. If you select a different agent, the dropdown shows again.
 - Reasoning levels show in lowercase, for example `high` and `xhigh`.
 - The project menu above the conversation has a "New session" item.
@@ -187,7 +193,6 @@ Open the command palette and type the name of a command:
 
 | Command | Result |
 | --- | --- |
-| "Show archived sessions" | Opens the "Archived" section. When the section is open, the command is "Hide archived sessions". |
 | "Stop grouping sessions by project" | Shows one list with no project groups. The command then changes to "Group sessions by project". |
 | "Show working sessions in their own section" | Moves working sessions back to the "Working" section of the app. |
 | "Show the pull request of this branch" | Opens the pull request of the branch of the session in the GitHub panel. |
