@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest"
-import { button, layout, menu, plus } from "../src/sidebar.js"
+import { button, clean, layout, menu, plus } from "../src/sidebar.js"
 
 // A session row as the app's sidebar renders it (OpenCode Desktop 2.2.6, inbox.tsx): the badge and title, then the
 // project, the branch icon, and the status and time.
@@ -52,6 +52,7 @@ const titled = (name) =>
   Array.from(document.querySelectorAll('[data-slot="sidebar-inbox-item"]')).find((element) => title(element) === name)
 
 beforeEach(() => {
+  clean()
   document.body.innerHTML = ""
 })
 
@@ -88,6 +89,48 @@ test("keeps the Needs attention list apart from the project groups", () => {
 
   expect(shown('[aria-labelledby$="-needs"]')).toEqual(["R0 -"])
   expect(shown(LIST)).toEqual(["R1 roadmap-sync", "R2 -"])
+})
+
+// Catches a project that moves away when the person opens one of its sessions: to read a session is no activity.
+test("opening a session leaves its project in place", () => {
+  render({
+    unread: [
+      ["roadmap-sync", "R0", "done"],
+      ["opencode-plus", "P1", "done"],
+    ],
+    recent: [
+      ["telemetry.dev", "T1"],
+      ["opencode-plus", "P2"],
+    ],
+  })
+  layout(true, false)
+  // The app moves the opened session from Unread to Recent, after T1, which finished later.
+  render({
+    unread: [["roadmap-sync", "R0", "done"]],
+    recent: [
+      ["telemetry.dev", "T1"],
+      ["opencode-plus", "P1"],
+      ["opencode-plus", "P2"],
+    ],
+  })
+  layout(true, false)
+
+  expect(shown(LIST)).toEqual(["R0 -", "P1 opencode-plus", "P2 -", "T1 -"])
+})
+
+// Catches a project that stays down when one of its sessions starts to work again.
+test("a project with a session that starts to work moves first", () => {
+  render({
+    recent: [
+      ["roadmap-sync", "R1"],
+      ["opencode-plus", "P1"],
+    ],
+  })
+  layout(true, true)
+  render({ recent: [["roadmap-sync", "R1"]], working: [["opencode-plus", "P1", "working"]] })
+  layout(true, true)
+
+  expect(shown(`${LIST}, [data-slot="sidebar-inbox-working"]`)).toEqual(["P1 -", "R1 -"])
 })
 
 // Catches a heading that sticks to the row above it: every project after the first starts with the same gap.

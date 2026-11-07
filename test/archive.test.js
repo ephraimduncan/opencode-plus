@@ -1,5 +1,5 @@
 import { OpenCode } from "@opencode/client"
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { archive, due } from "../src/archive.js"
 
 const HOUR = 60 * 60 * 1000
@@ -77,12 +77,13 @@ describe("due after the pull request of its branch merged or closed", () => {
   })
 })
 
-// A server for the client: an event stream that `send` writes to, and a session that each GET of a session returns.
-// `reads` counts those GETs.
-const server = () => {
+// A server for the client: an event stream that `send` writes to, the root sessions `listed`, a session that each GET
+// of a session returns, and folders on their default branch. `reads` counts the GETs of a session, and `archived` holds
+// the ids that a PATCH archived.
+const server = (listed = []) => {
   const encoder = new TextEncoder()
   const streams = []
-  const state = { reads: 0 }
+  const state = { reads: 0, archived: [] }
 
   const fetch = async (url, init) => {
     const { pathname } = new URL(url)
@@ -99,9 +100,20 @@ const server = () => {
       return new Response(body, { headers: { "content-type": "text/event-stream" } })
     }
 
+    if (pathname === "/api/session") return Response.json({ data: listed, cursor: {} })
+
+    if (pathname === "/api/vcs")
+      return Response.json({ location: {}, data: { branch: { current: "main", default: "main" } } })
+
+    if (init.method === "PATCH") {
+      if (JSON.parse(init.body).archived) state.archived.push(pathname.split("/").pop())
+
+      return new Response(null, { status: 204 })
+    }
+
     state.reads += 1
 
-    return Response.json(session({ busy: 2, idle: 1 }))
+    return Response.json({ data: session({ busy: 2, idle: 1 }) })
   }
 
   const send = (event) =>
@@ -143,4 +155,44 @@ test("a stopped archive stops reacting to events", async () => {
   await settle()
 
   expect(state.reads).toBe(1)
+})
+
+const context = (fetch) => ({
+  id: "opencode-plus",
+  client: OpenCode.make({ baseUrl: "http://127.0.0.1:4096", fetch }),
+  signal: new AbortController().signal,
+  log: { write: () => {} },
+})
+
+// Catches an archive of the session that a window shows: the session leaves the list while the person reads it.
+test("a session that a window shows stays until the window shows a different one", async () => {
+  const due = session({ busy: 14, idle: 13 })
+  const { fetch, state } = server([due])
+  const { open, stop, sweep } = archive(context(fetch), AFTER)
+
+  open([due.id], 1)
+  await sweep()
+  const shown = [...state.archived]
+  open([], 1)
+  await settle()
+  stop()
+
+  expect(shown).toEqual([])
+  expect(state.archived).toEqual([due.id])
+})
+
+// Catches a session that stays forever after its window closes: a closed window does not report again.
+test("a session of a window that stopped its reports can go after three minutes", async () => {
+  const due = session({ busy: 14, idle: 13 })
+  const { fetch, state } = server([due])
+  const { open, stop, sweep } = archive(context(fetch), AFTER)
+
+  vi.useFakeTimers({ toFake: ["Date"] })
+  open([due.id], 1)
+  vi.setSystemTime(Date.now() + 3 * 60 * 1000)
+  await sweep()
+  vi.useRealTimers()
+  stop()
+
+  expect(state.archived).toEqual([due.id])
 })

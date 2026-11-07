@@ -10,15 +10,17 @@ The plugin works with OpenCode Desktop 2.2.6.
 
 The sidebar changes apply to the "Inbox" interface layout. You select the layout in **Settings > General**.
 
+To turn off all the sidebar changes of the plugin, open **Settings > General** and turn off "Sidebar changes" in the "opencode-plus" section. The command "Turn off the sidebar changes of opencode-plus" does the same. The other features of the plugin continue to operate.
+
 - The unread sessions and the recent sessions show in one list, without the "Unread" and "Recent" headings.
-- The sessions of each project show together. The project with the most recent activity shows first.
+- The sessions of each project show together. A project moves to the top when one of its sessions starts to work or completes a run. When you open a session, its project stays in place.
 - A project with two or more sessions gets a heading with the project badge and a `+` button. Each session under a heading keeps its two lines, without the project badge and the project name.
 - The `+` button starts a new session in that project.
 - The "Needs attention" section stays at the top of the sidebar. Its sessions also show in groups by project.
 - A right-click on a session opens its menu. The plugin adds "New session" at the top of the menu, above "Archive" and "Delete…". This item starts a new session in the project of that session, as the `+` button does.
 - Working sessions show at the top of their project. Their run time shows in blue, next to the spinner of the app.
 - After you open a finished session, the sidebar shows it dim. A finished session that you did not open stays bright.
-- The "Show more" button and the "Archived" button show at the end of the list.
+- The "Show more" button shows at the end of the list. The "Archived" button stays at the bottom of the sidebar.
 
 ### Pull request badge
 
@@ -56,6 +58,7 @@ The sidebar changes apply to the "Inbox" interface layout. You select the layout
 - If you merge or close the pull request in the GitHub panel, the plugin archives the session at once. If the agent merges or closes it, the plugin archives the session when the run stops.
 - If you merge or close the pull request on GitHub, the plugin archives the session in approximately 10 seconds. The plugin asks GitHub about the pull request every 10 seconds. If nothing changed, GitHub does not count the request against your rate limit.
 - If you send a message to the session after the merge or the close, the session stays. A run that the agent starts itself, for example after a workflow, does not keep the session.
+- The plugin does not archive a session that a window shows. It archives the session after you open a different session in that window.
 - If an archived session gets a new message or a new run, the plugin unarchives it.
 - If you unarchive a session yourself, the plugin keeps the session until it has new activity.
 
@@ -193,6 +196,7 @@ Open the command palette and type the name of a command:
 
 | Command | Result |
 | --- | --- |
+| "Turn off the sidebar changes of opencode-plus" | Gives the sidebar back its app layout, with no groups, badges, or plugin menu item. The command then changes to "Turn on the sidebar changes of opencode-plus". |
 | "Stop grouping sessions by project" | Shows one list with no project groups. The command then changes to "Group sessions by project". |
 | "Show working sessions in their own section" | Moves working sessions back to the "Working" section of the app. |
 | "Show the pull request of this branch" | Opens the pull request of the branch of the session in the GitHub panel. |
