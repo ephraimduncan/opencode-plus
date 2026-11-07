@@ -68,14 +68,15 @@ ${INBOX}[${INLINE}] {
 [${INLINE}] > ${WORKING} > :not(div) {
   display: none;
 }
-/* T3 Code's Working color: sky-600, or sky-300 at 80% in dark mode. */
+/* T3 Code's Working color: sky-600, or sky-300 at 80% in dark mode. The time of a working session takes it, and the
+   app's spinner keeps its own color. */
 ${INBOX} {
   --plus-working: oklch(58.8% 0.158 241.966);
 }
 [data-color-scheme="dark"] ${INBOX} {
   --plus-working: oklch(82.8% 0.111 230.318 / 0.8);
 }
-${INBOX} ${ROW}[data-status="working"] > span:nth-of-type(2) > span:last-of-type > * {
+${INBOX} ${ROW}[data-status="working"] > span:nth-of-type(2) > span:last-of-type > :not([data-component="activity-ring"]) {
   color: var(--plus-working);
 }
 ${INBOX} ${ROW} > span,
@@ -87,33 +88,14 @@ ${DIM}[${MEMBER}] > span:first-child > span[dir],
 ${DIM}[${MEMBER}] > span:nth-of-type(2) {
   opacity: 0.6;
 }
-/* In a project group the heading names the project, so a row drops the project's badge and name, and shows its title
-   on one line with the worktree icon, the status, and the time at its end. The branch icon goes too: every session in
-   a repository has one, and it names the branch only in its tooltip. */
-${ROW}[${MEMBER}] {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "title status";
-  align-items: center;
-  column-gap: 8px;
-  height: auto;
-}
-${ROW}[${MEMBER}] > span:first-child,
-${ROW}[${MEMBER}] > span:nth-of-type(2) > span:first-of-type {
-  display: contents;
-}
+/* In a project group the heading names the project, so a row drops the project's badge and name. The row keeps its two
+   lines, and its second line starts under the title. */
 ${ROW}[${MEMBER}]:not([${GROUP}]) > span:first-child > span:first-child,
 ${ROW}[${MEMBER}] > span:nth-of-type(2) > span:first-of-type > span[dir],
-${ROW}[${MEMBER}] > span:nth-of-type(2) > span:first-of-type > div:has(use[href$="-branch"]),
 ${ROW}[${MEMBER}] > span:nth-of-type(2) > div {
   display: none;
 }
-${ROW}[${MEMBER}] > span:first-child > span[dir] {
-  grid-area: title;
-}
 ${ROW}[${MEMBER}] > span:nth-of-type(2) {
-  grid-area: status;
-  width: auto;
   padding-inline-start: 0;
 }
 /* The same space before every project; a group's heading takes its own 28px on top of it. */

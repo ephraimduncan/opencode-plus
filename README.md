@@ -12,11 +12,11 @@ The sidebar changes apply to the "Inbox" interface layout. You select the layout
 
 - The unread sessions and the recent sessions show in one list, without the "Unread" and "Recent" headings.
 - The sessions of each project show together. The project with the most recent activity shows first.
-- A project with two or more sessions gets a heading with the project badge and a `+` button. Each session under a heading shows on one line, without the project name and the branch icon.
+- A project with two or more sessions gets a heading with the project badge and a `+` button. Each session under a heading keeps its two lines, without the project badge and the project name.
 - The `+` button starts a new session in that project.
 - The "Needs attention" section stays at the top of the sidebar. Its sessions also show in groups by project.
 - A right-click on a session opens its menu. The plugin adds "New session" at the top of the menu, above "Archive" and "Delete…". This item starts a new session in the project of that session, as the `+` button does.
-- Working sessions show at the top of their project, with a blue status and time.
+- Working sessions show at the top of their project. Their run time shows in blue, next to the spinner of the app.
 - After you open a finished session, the sidebar shows it dim. A finished session that you did not open stays bright.
 - The "Show more" button and the "Archived" button show at the end of the list.
 
