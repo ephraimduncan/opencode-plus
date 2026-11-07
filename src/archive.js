@@ -10,6 +10,8 @@ import * as shell from "./shell.js"
 const SECOND = 1000
 const MINUTE = 60 * SECOND
 const PAGE = 200
+// How long the sessions that a window last told of count as shown.
+const WINDOW = 3 * MINUTE
 const ENDS = ["session.execution.succeeded", "session.execution.failed", "session.execution.interrupted"]
 const EVENTS = ["session.inbox.enqueued", "session.execution.started", "session.unarchived", ...ENDS]
 
@@ -44,7 +46,8 @@ export function due(session, now, { after, key, closed, asked }) {
 }
 
 // Archives due sessions every 10 seconds, and a session at once when its run ends. Follows the server's events to bring
-// sessions back. Returns `sweep`, which archives the due sessions at once, and the stop.
+// sessions back. A session that a window shows stays until the window shows a different one. Returns `sweep`, which
+// archives the due sessions at once, `open(ids, window)`, which records the sessions that a window shows, and the stop.
 export function archive(ctx, after) {
   const key = `${ctx.id}.keptAt`
   const started = Date.now()
@@ -113,11 +116,23 @@ export function archive(ctx, after) {
     return asks.get(session.id).at
   }
 
+  // The sessions that each window shows, by the window's id, and when the window last told. A window tells when it
+  // shows a different session and each minute, so the sessions of a closed window count for three minutes at most.
+  const windows = new Map()
+
+  const shown = (now) =>
+    new Set(
+      Array.from(windows.values()).flatMap(({ ids, time }) => (now - time < WINDOW ? ids : [])),
+    )
+
   // Archives each of `sessions` that is due.
   const settle = async (sessions) => {
     const now = Date.now()
+    const open = shown(now)
     // Only a session that a merge at this moment would archive needs a lookup.
-    const list = sessions.filter((session) => due(session, now, { after, key, closed: now, asked: session.time.created }))
+    const list = sessions.filter(
+      (session) => !open.has(session.id) && due(session, now, { after, key, closed: now, asked: session.time.created }),
+    )
     // The sessions of a folder share its branch, so they share one lookup. A folder that is gone, such as a removed
     // worktree, has no pull request.
     const directories = new Set(list.map((session) => session.location.directory))
@@ -201,6 +216,15 @@ export function archive(ctx, after) {
   }
 
   const run = () => sweep().catch(report)
+
+  // A session that the window stopped showing can be due, so it does not wait for the next sweep.
+  const open = (ids, window) => {
+    const left = (windows.get(window)?.ids ?? []).some((id) => !ids.includes(id))
+
+    windows.set(window, { ids, time: Date.now() })
+    if (left) void run()
+  }
+
   let timer
   const first = setTimeout(() => {
     void run()
@@ -220,5 +244,5 @@ export function archive(ctx, after) {
 
   void watch()
 
-  return { sweep: run, stop }
+  return { sweep: run, open, stop }
 }

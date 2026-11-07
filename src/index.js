@@ -1,4 +1,4 @@
-import { Command, Ipc, Plugin, Slot, Store, Style, createKeyed } from "@opencode/plugin/gui"
+import { Command, Ipc, Plugin, SettingsPage, Slot, Store, Style, createKeyed } from "@opencode/plugin/gui"
 import { Browser } from "@opencode/plugin/gui/browser"
 import { Schema } from "effect"
 // A window gets an inert module. Only the main process uses it.
@@ -32,14 +32,19 @@ const NEW_TAB = "tab.new"
 // The desktop app's own server.
 const SIDECAR = "sidecar"
 
-// The automatic archive in the main process, for the windows: `sweep` archives the due sessions at once.
-const Archive = (id) => Ipc.define({ id: `${id}.archive`, methods: { sweep: {} } })
+// The settings row of the switch of the sidebar changes.
+const SIDEBAR = "opencode-plus-sidebar"
+
+// The automatic archive in the main process, for the windows: `sweep` archives the due sessions at once, and `open`
+// tells which sessions the window shows.
+const Archive = (id) =>
+  Ipc.define({ id: `${id}.archive`, methods: { sweep: {}, open: { input: Schema.Array(Schema.String) } } })
 
 // Each window: restyles the sidebar, the chat input, and the conversation. The app has no plugin API for these, so a
 // pass over the page applies every change after each change to the page.
 function setup(ctx) {
   const options = settings(ctx.options)
-  const { groups, working } = ctx.stores
+  const { groups, working, inbox } = ctx.stores
 
   // Fills `parent` with the app's icon `name`.
   const icon = (name, props) => (parent) => insert(parent, () => createComponent(ctx.ui.Icon, { name, ...props }))
@@ -303,7 +308,21 @@ function setup(ctx) {
   // Opens the pull request or issue that a link names in the side region of the session, and returns whether it did.
   const openGitHub = options.github ? github(ctx, { run, browse: visit, changed }) : () => false
 
-  const sync = () => {
+  // Makes the plugin's changes to the sidebar while its switch is on, and takes them away once when it turns off.
+  let applied = false
+  const arrange = () => {
+    if (!inbox.value.enabled) {
+      if (applied) {
+        sidebar.clean()
+        pr.clean()
+      }
+      applied = false
+
+      return
+    }
+
+    applied = true
+    sidebar.observe(rows)
     sidebar.layout(groups.value.enabled, working.value.inline)
     sidebar.plus(add)
     sidebar.menu(newSession)
@@ -313,6 +332,10 @@ function setup(ctx) {
       open: (url) => openGitHub(url) || ctx.system.openExternal(url),
       label: ({ number, state, title }) => ctx.t("pr.label", { number, state: ctx.t(`pr.${state}`), title }),
     })
+  }
+
+  const sync = () => {
+    arrange()
     branch.mount(dropdown)
     branch.check()
     composer.compose(options.hideAgent)
@@ -345,8 +368,26 @@ function setup(ctx) {
   const observer = new MutationObserver(schedule)
   observer.observe(document.body, { childList: true, subtree: true })
   const labels = new MutationObserver(schedule)
-  // A pass looks up the pull requests that are due again, even when the page does not change.
-  const refresh = setInterval(schedule, MINUTE)
+  // A change to the sidebar gets its pass at once, not in the next frame, so a row that the app moved does not show in
+  // the wrong place for a frame.
+  const rows = new MutationObserver(arrange)
+
+  // The root of the session that this window shows. The archive leaves it until the window shows a different one.
+  const showing = () => {
+    const session = ctx.sessions.current()
+
+    return session && session.server.data.session.root(session.id)
+  }
+  const tell = (id) => void archiver?.open(id ? [id] : []).catch(() => undefined)
+
+  createKeyed(showing, tell, { otherwise: () => tell() })
+
+  // A pass looks up the pull requests that are due again, even when the page does not change. The archive forgets the
+  // session of a window that stops telling it, as a closed window does.
+  const refresh = setInterval(() => {
+    schedule()
+    tell(showing())
+  }, MINUTE)
   // `scrollend` does not bubble, so only a capturing listener on the document sees it.
   document.addEventListener("scrollend", schedule, true)
   // The usage card follows the open session while it shows.
@@ -363,12 +404,12 @@ function setup(ctx) {
   )
   const unlistenLinks = links.listen((url) => openGitHub(url) || browse(url))
 
-  createKeyed(() => `${groups.value.enabled}:${working.value.inline}:${running()}`, sync)
+  createKeyed(() => `${inbox.value.enabled}:${groups.value.enabled}:${working.value.inline}:${running()}`, sync)
 
   if (options.workflows) workflows(ctx)
 
-  ctx.add(Style, sidebar.css)
-  ctx.add(Style, pr.css)
+  ctx.add(Style, () => (inbox.value.enabled ? sidebar.css : undefined))
+  ctx.add(Style, () => (inbox.value.enabled ? pr.css : undefined))
   ctx.add(Style, branch.css)
   ctx.add(Style, composer.css(options))
   ctx.add(Style, timeline.css(options.responseLabel))
@@ -391,29 +432,90 @@ function setup(ctx) {
       }),
     ],
   })
-  ctx.add(Command, () => ({
-    id: "toggle-groups",
-    title: ctx.t(groups.value.enabled ? "groups.off" : "groups.on"),
-    keywords: "group project projects folders sessions sidebar inbox",
-    run: () =>
-      groups.update((draft) => {
-        draft.enabled = !draft.enabled
+  const turn = (enabled) =>
+    inbox.update((draft) => {
+      draft.enabled = enabled
+    })
+
+  // A section of the General page of Settings, with the switch of the sidebar changes.
+  ctx.add(SettingsPage, {
+    id: ctx.id,
+    page: "general",
+    title: "opencode-plus",
+    entries: [
+      {
+        id: SIDEBAR,
+        title: ctx.t("sidebar.title"),
+        description: ctx.t("sidebar.description"),
+        keywords: "opencode-plus sidebar inbox group project pull request badge",
+      },
+    ],
+    render: () =>
+      createComponent(ctx.ui.SettingsSection, {
+        title: "opencode-plus",
+        get children() {
+          return createComponent(ctx.ui.SettingsRow, {
+            id: SIDEBAR,
+            get title() {
+              return ctx.t("sidebar.title")
+            },
+            get description() {
+              return ctx.t("sidebar.description")
+            },
+            get children() {
+              return createComponent(ctx.ui.Switch, {
+                get label() {
+                  return ctx.t("sidebar.title")
+                },
+                hideLabel: true,
+                get checked() {
+                  return inbox.value.enabled
+                },
+                onChange: turn,
+              })
+            },
+          })
+        },
       }),
-  }))
+  })
   ctx.add(Command, () => ({
-    id: "toggle-working",
-    title: ctx.t(working.value.inline ? "working.section" : "working.inline"),
-    keywords: "working running busy section shelf sessions sidebar inbox",
-    run: () =>
-      working.update((draft) => {
-        draft.inline = !draft.inline
-      }),
+    id: "toggle-sidebar",
+    title: ctx.t(inbox.value.enabled ? "sidebar.off" : "sidebar.on"),
+    keywords: "opencode-plus sidebar inbox group project pull request badge",
+    run: () => turn(!inbox.value.enabled),
   }))
+  ctx.add(Command, () =>
+    inbox.value.enabled
+      ? {
+          id: "toggle-groups",
+          title: ctx.t(groups.value.enabled ? "groups.off" : "groups.on"),
+          keywords: "group project projects folders sessions sidebar inbox",
+          run: () =>
+            groups.update((draft) => {
+              draft.enabled = !draft.enabled
+            }),
+        }
+      : undefined,
+  )
+  ctx.add(Command, () =>
+    inbox.value.enabled
+      ? {
+          id: "toggle-working",
+          title: ctx.t(working.value.inline ? "working.section" : "working.inline"),
+          keywords: "working running busy section shelf sessions sidebar inbox",
+          run: () =>
+            working.update((draft) => {
+              draft.inline = !draft.inline
+            }),
+        }
+      : undefined,
+  )
 
   return () => {
     stopped = true
     observer.disconnect()
     labels.disconnect()
+    rows.disconnect()
     cancelAnimationFrame(frame)
     clearTimeout(retry)
     clearInterval(refresh)
@@ -439,18 +541,24 @@ function main(ctx) {
 
   const archiver = archive(ctx, archiveAfterHours * HOUR)
 
-  ctx.provide(Archive(ctx.id), { sweep: archiver.sweep })
+  ctx.provide(Archive(ctx.id), { sweep: archiver.sweep, open: (ids, caller) => archiver.open(ids, caller.window) })
 
   return archiver.stop
 }
 
 export default Plugin.define({
   stores: {
+    inbox: Store.global(Schema.Struct({ enabled: Schema.Boolean }), { enabled: true }),
     groups: Store.global(Schema.Struct({ enabled: Schema.Boolean }), { enabled: true }),
     working: Store.global(Schema.Struct({ inline: Schema.Boolean }), { inline: true }),
   },
   i18n: {
     en: {
+      "sidebar.title": "Sidebar changes",
+      "sidebar.description":
+        "Groups sessions by project, shows pull request badges, and adds \"New session\" to the menu of a session.",
+      "sidebar.on": "Turn on the sidebar changes of opencode-plus",
+      "sidebar.off": "Turn off the sidebar changes of opencode-plus",
       "groups.on": "Group sessions by project",
       "groups.off": "Stop grouping sessions by project",
       "working.inline": "Show working sessions in the list",

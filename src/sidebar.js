@@ -39,7 +39,7 @@ const ITEM = "data-plus-item"
 const DIM = `${INBOX} ${ROW}[data-status="ready"]:not([data-state="active"], :hover:not(:has([${ADD}]:hover)), :focus-visible)`
 
 // In one list, the rows of the Unread and Recent sections become rows of the scrolling list, so `order` can place them,
-// and the Show more and Archived buttons follow them. With working rows in the list, the scrolling list and the Working
+// and the Show more and Archived buttons follow them. The Archived button stays at the bottom of the sidebar. With working rows in the list, the scrolling list and the Working
 // section dissolve into the sidebar, which scrolls instead.
 export const css = `
 ${INBOX}[${JOIN}] ${FINISHED},
@@ -54,6 +54,7 @@ ${INBOX}[${JOIN}] ${FINISHED} > button {
 }
 ${INBOX}[${JOIN}] ${SCROLL} > div.pt-3 {
   order: 100001;
+  margin-top: auto;
 }
 ${INBOX}[${INLINE}] {
   overflow-y: auto;
@@ -167,17 +168,18 @@ export const project = (row) => row.querySelector(NAME)?.textContent.trim()
 // `inline`, working rows join it instead of their own section.
 export function layout(grouped, inline) {
   document.querySelectorAll(INBOX).forEach((inbox) => {
-    const rows = (selector) => Array.from(inbox.querySelectorAll(`${selector} > div > ${ROW}`))
-    const finished = rows(FINISHED)
-    const needs = rows(NEEDS)
-    const working = rows(WORKING)
-
     mark(inbox, JOIN, grouped || inline ? "" : undefined)
     mark(inbox, INLINE, inline ? "" : undefined)
     // A collapsed Working section renders no rows.
     if (inline) inbox.querySelector(`:scope > ${WORKING} > button[aria-expanded="false"]`)?.click()
 
-    arrange(finished, grouped, inline ? working : [])
+    const rows = (selector) => Array.from(inbox.querySelectorAll(`${selector} > div > ${ROW}`))
+    const finished = rows(FINISHED)
+    const needs = rows(NEEDS)
+    const working = rows(WORKING)
+
+    if (grouped) track(inline ? [...working, ...finished] : finished)
+    arrange(finished, grouped, inline ? working : [], (key) => active.get(key) ?? 0)
     arrange(needs, grouped)
     if (!inline) arrange(working, grouped)
 
@@ -187,10 +189,36 @@ export function layout(grouped, inline) {
   })
 }
 
-// Orders rows by project, most recently active project first, with the same space before each project. A project with
-// more than one session gets a heading; a project's only session keeps the app's row, which names the project. Working
-// rows lead: their projects come first, and they come first within their project.
-const arrange = (finished, grouped, working = []) => {
+// When each project last had activity, as a count that grows: one of its sessions started to work, or ended a run.
+// Opening a session is no activity, so its project stays in place. On the first pass, the projects keep the order of
+// the list.
+const active = new Map()
+let count = 0
+
+// The status of each session at the last pass, by its project and title.
+const statuses = new Map()
+
+const track = (rows) => {
+  const first = statuses.size === 0
+
+  // From the end of the list, so the first row of a project gives the project its count on the first pass.
+  rows.toReversed().forEach((row) => {
+    const name = project(row)
+
+    if (!name) return
+    const key = `${name}\n${title(row)}`
+    const status = row.getAttribute("data-status")
+    const before = statuses.get(key)
+
+    statuses.set(key, status)
+    if (first || (status !== before && status !== "ready")) active.set(name, ++count)
+  })
+}
+
+// Orders rows by project, with the same space before each project. A project with more than one session gets a
+// heading; a project's only session keeps the app's row, which names the project. `rank(project)` puts the projects in
+// order, highest first, else they keep the order of the list. Working rows lead within their project.
+const arrange = (finished, grouped, working = [], rank = () => 0) => {
   const all = [...working, ...finished]
 
   if (!grouped && working.length === 0) return all.forEach(ungroup)
@@ -206,19 +234,21 @@ const arrange = (finished, grouped, working = []) => {
 
   let order = 0
 
-  Array.from(units).forEach(([key, list], unit) => {
-    const group = grouped && typeof key === "string" && list.length > 1
+  Array.from(units)
+    .toSorted(([a], [b]) => rank(b) - rank(a))
+    .forEach(([key, list], unit) => {
+      const group = grouped && typeof key === "string" && list.length > 1
 
-    list.forEach((row, index) => {
-      order += 1
+      list.forEach((row, index) => {
+        order += 1
 
-      if (row.style.order !== String(order)) row.style.order = String(order)
+        if (row.style.order !== String(order)) row.style.order = String(order)
 
-      mark(row, GROUP, group && index === 0 ? key : undefined)
-      mark(row, MEMBER, group ? "" : undefined)
-      mark(row, GAP, grouped && unit > 0 && index === 0 ? "" : undefined)
+        mark(row, GROUP, group && index === 0 ? key : undefined)
+        mark(row, MEMBER, group ? "" : undefined)
+        mark(row, GAP, grouped && unit > 0 && index === 0 ? "" : undefined)
+      })
     })
-  })
 }
 
 const ungroup = (row) => {
@@ -292,4 +322,18 @@ export function menu(create) {
 export function clean() {
   layout(false, false)
   document.querySelectorAll(`[${ADD}], [${ITEM}]`).forEach((element) => element.remove())
+  active.clear()
+  statuses.clear()
+}
+
+// Has `observer` watch the rows of each sidebar once. Its callback runs before the page paints, so a pass in it puts a
+// row that the app moved in its place before the row shows.
+const watched = new WeakSet()
+
+export function observe(observer) {
+  document.querySelectorAll(INBOX).forEach((inbox) => {
+    if (watched.has(inbox)) return
+    watched.add(inbox)
+    observer.observe(inbox, { childList: true, subtree: true })
+  })
 }
