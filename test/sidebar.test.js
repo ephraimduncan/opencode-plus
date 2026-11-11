@@ -20,10 +20,12 @@ const section = (name, rows, more = "") =>
       `<div id="cl-1-${name}" class="flex h-6 shrink-0 items-center"><span class="min-w-0 truncate">${name}</span></div>` +
       `<div class="flex flex-col gap-0.5">${rows.map((r) => row(...r)).join("")}</div>${more}</div>`
 
-const render = ({ needs = [], unread = [], recent = [], working = [], expanded = true }) => {
+// `open` is the open session, which the app lists before the sections when no section shows it.
+const render = ({ open = [], needs = [], unread = [], recent = [], working = [], expanded = true }) => {
   document.body.innerHTML =
     `<div data-slot="sidebar-inbox" class="flex min-h-0 flex-1 flex-col"><span class="sr-only" role="status"></span>` +
     `<div data-slot="sidebar-inbox-scroll" data-scrollable class="flex min-h-0 flex-1 flex-col gap-0.5">` +
+    (open.length > 0 ? `<div class="flex shrink-0 flex-col gap-0.5 pb-2.5">${open.map((r) => row(...r)).join("")}</div>` : "") +
     section("needs", needs) +
     section("unread", unread) +
     section("recent", recent, `<button type="button">Show more</button>`) +
@@ -116,6 +118,69 @@ test("opening a session leaves its project in place", () => {
   layout(true, false)
 
   expect(shown(LIST)).toEqual(["R0 -", "P1 opencode-plus", "P2 -", "T1 -"])
+})
+
+// Catches a session that moves down in its project when the person opens it: the app lists a read session after the
+// unread sessions.
+test("opening a session leaves it in place in its project", () => {
+  render({
+    unread: [
+      ["opencode-plus", "P1", "done"],
+      ["opencode-plus", "P2", "done"],
+    ],
+    recent: [["opencode-plus", "P3"]],
+  })
+  layout(true, false)
+  render({
+    unread: [["opencode-plus", "P2", "done"]],
+    recent: [
+      ["opencode-plus", "P1"],
+      ["opencode-plus", "P3"],
+    ],
+  })
+  layout(true, false)
+
+  expect(shown(LIST)).toEqual(["P1 opencode-plus", "P2 -", "P3 -"])
+})
+
+// Catches the open session at the top of the sidebar: the app lists it before the sections when no section shows it,
+// as for a moment after the person archives it.
+test("keeps the open session in its place when no section shows it", () => {
+  render({
+    recent: [
+      ["roadmap-sync", "R1"],
+      ["opencode-plus", "P1"],
+      ["opencode-plus", "P2"],
+      ["opencode-plus", "P3"],
+    ],
+  })
+  layout(true, false)
+  render({
+    open: [["opencode-plus", "P2"]],
+    recent: [
+      ["roadmap-sync", "R1"],
+      ["opencode-plus", "P1"],
+      ["opencode-plus", "P3"],
+    ],
+  })
+  layout(true, false)
+
+  expect(shown('[data-slot="sidebar-inbox-scroll"]')).toEqual(["R1 -", "P1 opencode-plus", "P2 -", "P3 -"])
+})
+
+// Catches a session that moves to the end of its project when its title changes: the row stays, with a new title.
+test("a renamed session keeps its place", () => {
+  render({
+    recent: [
+      ["opencode-plus", "P1"],
+      ["opencode-plus", "P2"],
+    ],
+  })
+  layout(true, false)
+  titled("P1").querySelector(":scope > span > span[dir]").textContent = "P0"
+  layout(true, false)
+
+  expect(shown(LIST)).toEqual(["P0 opencode-plus", "P2 -"])
 })
 
 // Catches a project that stays down when one of its sessions starts to work again.
