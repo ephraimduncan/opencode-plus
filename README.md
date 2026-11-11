@@ -2,7 +2,7 @@
 
 opencode-plus is a plugin for the OpenCode Desktop app. It puts the sessions in the sidebar into groups by project, archives finished sessions, runs dynamic workflows, shows GitHub pull requests and issues at the side of the conversation, and makes the conversation easier to read.
 
-The plugin works with OpenCode Desktop 2.2.6.
+The plugin works with OpenCode Desktop 2.2.7.
 
 ## What the plugin does
 
@@ -14,10 +14,12 @@ To turn off all the sidebar changes of the plugin, open **Settings > General** a
 
 - The unread sessions and the recent sessions show in one list, without the "Unread" and "Recent" headings.
 - The sessions of each project show together. A project moves to the top when one of its sessions starts to work or completes a run. When you open a session, its project stays in place.
+- A session moves to the top of its project when it starts to work or completes a run. When you open a session or change its title, the session stays in place.
+- The open session always shows in its project. For example, a session that you archive stays in its place until the app closes it.
 - A project with two or more sessions gets a heading with the project badge and a `+` button. Each session under a heading keeps its two lines, without the project badge and the project name.
 - The `+` button starts a new session in that project.
 - The "Needs attention" section stays at the top of the sidebar. Its sessions also show in groups by project.
-- A right-click on a session opens its menu. The plugin adds "New session" at the top of the menu, above "Archive" and "Delete…". This item starts a new session in the project of that session, as the `+` button does.
+- A right-click on a session opens its menu. The plugin adds "New session" at the top of the menu. This item starts a new session in the project of that session, as the `+` button does.
 - Working sessions show at the top of their project. Their run time shows in blue, next to the spinner of the app.
 - After you open a finished session, the sidebar shows it dim. A finished session that you did not open stays bright.
 - The "Show more" button shows at the end of the list. The "Archived" button stays at the bottom of the sidebar.
@@ -60,6 +62,7 @@ To turn off all the sidebar changes of the plugin, open **Settings > General** a
 - If you send a message to the session after the merge or the close, the session stays. A run that the agent starts itself, for example after a workflow, does not keep the session.
 - The plugin does not archive a session that a window shows. It archives the session after you open a different session in that window.
 - If an archived session gets a new message or a new run, the plugin unarchives it.
+- The sidebar stops showing a session when the plugin archives it, and shows the session again when the plugin unarchives it. The "Archived" button shows the archived sessions.
 - If you unarchive a session yourself, the plugin keeps the session until it has new activity.
 
 ### Conversation and chat input

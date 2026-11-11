@@ -3,6 +3,7 @@ import { createStore, reconcile } from "solid-js/store"
 import { createKeyed } from "@opencode/plugin/gui"
 import { Workflows } from "../rpc.js"
 import { active, order } from "./format.js"
+import { request } from "./request.js"
 
 // A run is new when it starts less than this long before the panel hears of it, so that a reload does not open the
 // panel for old runs.
@@ -16,9 +17,6 @@ const FRESH = 60 * 1000
 export function createWorkflows(ctx, { onStart }) {
   const [state, setState] = createStore({ runs: {}, sessions: {}, agents: {}, results: {}, details: {}, ultracode: {} })
   const loaded = new Set()
-
-  const rpc = (session) => session.server.client.rpc(Workflows)
-  const call = (session) => ({ location: { directory: session.directory } })
 
   const remember = (run) => {
     const known = state.runs[run.id]
@@ -83,8 +81,8 @@ export function createWorkflows(ctx, { onStart }) {
 
       try {
         const [{ runs }, { on }] = await Promise.all([
-          rpc(session).list({ sessionID }, call(session)),
-          rpc(session).ultracode({ sessionID }, call(session)),
+          request(session, "list", { sessionID }),
+          request(session, "ultracode", { sessionID }),
         ])
 
         batch(() => {
@@ -101,7 +99,7 @@ export function createWorkflows(ctx, { onStart }) {
 
     // Loads every agent of a run, and its full result.
     async open(session, runID) {
-      const { run } = await rpc(session).get({ runID, sessionID: state.runs[runID]?.sessionID }, call(session))
+      const { run } = await request(session, "get", { runID, sessionID: state.runs[runID]?.sessionID })
 
       batch(() => {
         merge(run.id, run.agents ?? [])
@@ -111,22 +109,22 @@ export function createWorkflows(ctx, { onStart }) {
 
     // Loads an agent's full prompt and result.
     async describe(session, runID, agentID) {
-      const { agent } = await rpc(session).agent({ runID, agentID, sessionID: state.runs[runID]?.sessionID }, call(session))
+      const { agent } = await request(session, "agent", { runID, agentID, sessionID: state.runs[runID]?.sessionID })
 
       setState("details", `${runID}/${agentID}`, agent)
     },
 
-    stop: (session, runID) => rpc(session).stop({ runID }, call(session)),
-    pause: (session, runID) => rpc(session).pause({ runID }, call(session)),
-    resume: (session, runID) => rpc(session).resume({ runID }, call(session)),
-    stopAgent: (session, runID, agentID) => rpc(session).stopAgent({ runID, agentID }, call(session)),
+    stop: (session, runID) => request(session, "stop", { runID }),
+    pause: (session, runID) => request(session, "pause", { runID }),
+    resume: (session, runID) => request(session, "resume", { runID }),
+    stopAgent: (session, runID, agentID) => request(session, "stopAgent", { runID, agentID }),
     save: (session, runID, scope) =>
-      rpc(session).save({ runID, scope, sessionID: state.runs[runID]?.sessionID }, call(session)),
+      request(session, "save", { runID, scope, sessionID: state.runs[runID]?.sessionID }),
 
     ultracode: (sessionID) => state.ultracode[sessionID] === true,
     setUltracode: async (session, sessionID, on) => {
       setState("ultracode", sessionID, on)
-      await rpc(session).ultracode({ sessionID, on }, call(session))
+      await request(session, "ultracode", { sessionID, on })
     },
   }
 }

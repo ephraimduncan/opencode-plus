@@ -1,11 +1,11 @@
 import { mark } from "./dom.js"
 
-// The session sidebar has no plugin API, so this works on its markup (OpenCode Desktop 2.2.6, the Inbox layout). A row
+// The session sidebar has no plugin API, so this works on its markup (OpenCode Desktop 2.2.7, the Inbox layout). A row
 // `[data-slot="sidebar-inbox-item"]` has two lines: the project's badge and the session's title, then the project's
-// name, its worktree and branch icons, and the status and time. The scrolling list holds the open session when no
-// section shows it, the Needs attention, Unread, and Recent sections, then the Archived button. Working rows sit in
-// their own section below the list, behind a toggle button. Each section is a `role="group"` that holds its heading,
-// then a div with its rows; the id of the heading ends in the section's name.
+// name, its worktree and branch icons, and the status and time. The scrolling list holds a div with the open session
+// when no section shows it, the Needs attention, Unread, and Recent sections, then the Archived button. Working rows
+// sit in their own section below the list, behind a toggle button. Each section is a `role="group"` that holds its
+// heading, then a div with its rows; the id of the heading ends in the section's name.
 
 const INBOX = '[data-slot="sidebar-inbox"]'
 const SCROLL = '[data-slot="sidebar-inbox-scroll"]'
@@ -39,11 +39,13 @@ const ITEM = "data-plus-item"
 const DIM = `${INBOX} ${ROW}[data-status="ready"]:not([data-state="active"], :hover:not(:has([${ADD}]:hover)), :focus-visible)`
 
 // In one list, the rows of the Unread and Recent sections become rows of the scrolling list, so `order` can place them,
-// and the Show more and Archived buttons follow them. The Archived button stays at the bottom of the sidebar. With working rows in the list, the scrolling list and the Working
-// section dissolve into the sidebar, which scrolls instead.
+// and the Show more and Archived buttons follow them. So does the open session that no section shows, once it has a
+// place. The Archived button stays at the bottom of the sidebar. With working rows in the list, the scrolling list and
+// the Working section dissolve into the sidebar, which scrolls instead.
 export const css = `
 ${INBOX}[${JOIN}] ${FINISHED},
-${INBOX}[${JOIN}] ${FINISHED} > div:not([id]) {
+${INBOX}[${JOIN}] ${FINISHED} > div:not([id]),
+${INBOX}[${JOIN}] ${SCROLL} > div:has(> ${ROW}[style*="order"]) {
   display: contents;
 }
 ${INBOX}[${JOIN}] ${FINISHED} > div[id] {
@@ -164,6 +166,9 @@ export const title = (row) => row.querySelector(TITLE)?.textContent.trim()
 // The name of the session's project, as its row shows it.
 export const project = (row) => row.querySelector(NAME)?.textContent.trim()
 
+// The session that a row shows. A row does not name its session, so its project and title stand for it.
+const session = (row) => `${project(row)}\n${title(row)}`
+
 // Groups the rows of each section by project when `grouped`. The Unread and Recent rows then form one list, and with
 // `inline`, working rows join it instead of their own section.
 export function layout(grouped, inline) {
@@ -174,52 +179,71 @@ export function layout(grouped, inline) {
     if (inline) inbox.querySelector(`:scope > ${WORKING} > button[aria-expanded="false"]`)?.click()
 
     const rows = (selector) => Array.from(inbox.querySelectorAll(`${selector} > div > ${ROW}`))
-    const finished = rows(FINISHED)
     const needs = rows(NEEDS)
     const working = rows(WORKING)
+    // The open session, when no section shows it, as for a moment after it is archived. The app lists it first; in
+    // groups, it shows in its project.
+    const open = rows(SCROLL)
+    const finished = grouped ? [...rows(FINISHED), ...open] : rows(FINISHED)
 
     if (grouped) track(inline ? [...working, ...finished] : finished)
     arrange(finished, grouped, inline ? working : [], (key) => active.get(key) ?? 0)
     arrange(needs, grouped)
     if (!inline) arrange(working, grouped)
-
-    // The open session, when no section shows it.
-    const placed = new Set([...finished, ...needs, ...working])
-    inbox.querySelectorAll(ROW).forEach((row) => placed.has(row) || ungroup(row))
+    if (!grouped) open.forEach(ungroup)
   })
 }
 
-// When each project last had activity, as a count that grows: one of its sessions started to work, or ended a run.
-// Opening a session is no activity, so its project stays in place. On the first pass, the projects keep the order of
-// the list.
+// When each project and each session last had activity, as a count that grows: the session started to work, or ended a
+// run. Opening a session is no activity, so the session and its project stay in place. On the first pass, they keep
+// the order of the list.
 const active = new Map()
 let count = 0
 
-// The status of each session at the last pass, by its project and title.
+// The status of each session at the last pass.
 const statuses = new Map()
+
+// The session that each row showed at the last pass. A new title changes what stands for the session, but not its row.
+const shown = new WeakMap()
 
 const track = (rows) => {
   const first = statuses.size === 0
 
-  // From the end of the list, so the first row of a project gives the project its count on the first pass.
+  // From the end of the list, so the first row gets the highest count on the first pass.
   rows.toReversed().forEach((row) => {
     const name = project(row)
 
     if (!name) return
-    const key = `${name}\n${title(row)}`
+    const key = session(row)
+    const last = shown.get(row)
+
+    shown.set(row, key)
+    if (last !== undefined && last !== key) rename(last, key)
     const status = row.getAttribute("data-status")
     const before = statuses.get(key)
 
     statuses.set(key, status)
-    if (first || (status !== before && status !== "ready")) active.set(name, ++count)
+    if (!first && (status === before || status === "ready")) return
+    active.set(name, ++count)
+    active.set(key, count)
   })
 }
 
+// Gives the status and the count of the session `from` to the session `to`.
+const rename = (from, to) =>
+  [statuses, active].forEach((map) => {
+    if (!map.has(from)) return
+    map.set(to, map.get(from))
+    map.delete(from)
+  })
+
 // Orders rows by project, with the same space before each project. A project with more than one session gets a
-// heading; a project's only session keeps the app's row, which names the project. `rank(project)` puts the projects in
-// order, highest first, else they keep the order of the list. Working rows lead within their project.
+// heading; a project's only session keeps the app's row, which names the project. `rank(key)` puts the projects in
+// order, and the sessions of each project, highest first; equal ranks keep the order of the list. Working rows lead
+// within their project.
 const arrange = (finished, grouped, working = [], rank = () => 0) => {
-  const all = [...working, ...finished]
+  const sessions = grouped ? finished.toSorted((a, b) => rank(session(b)) - rank(session(a))) : finished
+  const all = [...working, ...sessions]
 
   if (!grouped && working.length === 0) return all.forEach(ungroup)
 

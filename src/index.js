@@ -3,7 +3,7 @@ import { Browser } from "@opencode/plugin/gui/browser"
 import { Schema } from "effect"
 // A window gets an inert module. Only the main process uses it.
 import { app, safeStorage, webContents } from "electron"
-import { createComponent, createEffect, createRoot, createSignal } from "solid-js"
+import { createComponent, createEffect, createRoot, createSignal, onCleanup } from "solid-js"
 import { insert } from "solid-js/web"
 import { archive } from "./archive.js"
 import * as branch from "./branch.js"
@@ -381,6 +381,23 @@ function setup(ctx) {
   const tell = (id) => void archiver?.open(id ? [id] : []).catch(() => undefined)
 
   createKeyed(showing, tell, { otherwise: () => tell() })
+
+  // The sidebar follows an archive or an unarchive only for a session that the window holds; for the others, it keeps
+  // the list that it read when it started (OpenCode Desktop 2.2.7). The archive changes sessions that no window holds,
+  // so the window reads each of them, and then the sidebar shows the change.
+  createKeyed(
+    () => ctx.servers.get(SIDECAR)?.data,
+    (data) => {
+      const read = (event) => {
+        const id = event.data.sessionID
+
+        if (!data.session.get(id)) void data.session.sync(id).catch(() => undefined)
+      }
+
+      onCleanup(data.on("session.archived", read))
+      onCleanup(data.on("session.unarchived", read))
+    },
+  )
 
   // A pass looks up the pull requests that are due again, even when the page does not change. The archive forgets the
   // session of a window that stops telling it, as a closed window does.
