@@ -9,6 +9,7 @@ import { archive } from "./archive.js"
 import * as branch from "./branch.js"
 import * as composer from "./composer.js"
 import * as cookies from "./cookies.js"
+import * as elapsed from "./elapsed.js"
 import { github, strings as githubStrings } from "./github/index.jsx"
 import * as links from "./links.js"
 import * as menu from "./menu.js"
@@ -49,19 +50,17 @@ function setup(ctx) {
   // Fills `parent` with the app's icon `name`.
   const icon = (name, props) => (parent) => insert(parent, () => createComponent(ctx.ui.Icon, { name, ...props }))
 
-  // Whether the open session still works, as the app's sidebar decides it. The plugin docs do not describe this part of
-  // `server.data`; if a release changes it, the divider treats the session as idle instead of stopping every pass.
+  // Whether session `id` itself works, as the app's sidebar decides it from `data`, the sessions of a server.
+  const busy = (data, id) =>
+    data.status(id) === "running" || data.pending.list(id).some((item) => item.type !== "synthetic")
+
+  // Whether the open session still works. The plugin docs do not describe this part of `server.data`; if a release
+  // changes it, the divider treats the session as idle instead of stopping every pass.
   const running = () => {
     const session = ctx.sessions.current()
 
     try {
-      const data = session?.server.data.session
-
-      return (
-        !!session &&
-        (data.status(session.id) === "running" ||
-          data.pending.list(session.id).some((item) => item.type !== "synthetic"))
-      )
+      return !!session && busy(session.server.data.session, session.id)
     } catch {
       return false
     }
@@ -124,6 +123,7 @@ function setup(ctx) {
     const names = new Map(projects.map((project) => [project.id, named(project)]))
 
     return page.data.map((item) => ({
+      id: item.id,
       title: item.title,
       project: names.get(item.projectID),
       location: item.location,
@@ -132,10 +132,28 @@ function setup(ctx) {
 
   // The folder and branch of the session that `row` shows, as the app knows them. Undefined when it cannot tell.
   const locate = (row) => {
-    const location = where(sidebar.title(row), sidebar.project(row))
+    const location = where(sidebar.title(row), sidebar.project(row))?.location
     const branch = location && ctx.servers.get(SIDECAR)?.data.location.vcs.info(location)?.branch.current
 
     return branch ? { directory: location.directory, branch } : undefined
+  }
+
+  // The session that `row` shows, and when its work started, as the app's data tells. Undefined when it cannot tell
+  // the session. The plugin docs do not describe this part of `server.data`; if a release changes it, the row keeps
+  // the app's time.
+  const work = (row) => {
+    const id = where(sidebar.title(row), sidebar.project(row))?.id
+    const data = ctx.servers.get(SIDECAR)?.data.session
+
+    if (!id || !data) return
+
+    try {
+      const agents = data.active().some((agent) => agent !== id && data.root(agent) === id)
+
+      return { id, from: elapsed.origin(data.get(id)?.time ?? {}, busy(data, id), agents) }
+    } catch {
+      return
+    }
   }
 
   // The branches of the folder that `label` names, or undefined when git cannot list them there.
@@ -315,6 +333,7 @@ function setup(ctx) {
       if (applied) {
         sidebar.clean()
         pr.clean()
+        elapsed.clean()
       }
       applied = false
 
@@ -326,6 +345,7 @@ function setup(ctx) {
     sidebar.layout(groups.value.enabled, working.value.inline)
     sidebar.plus(add)
     sidebar.menu(newSession)
+    elapsed.show(work)
     pr.show({
       locate,
       lookup: pull,
@@ -405,6 +425,8 @@ function setup(ctx) {
     schedule()
     tell(showing())
   }, MINUTE)
+  // The times of the working sessions go on while the page does not change.
+  const tick = setInterval(() => applied && elapsed.show(work), 1000)
   // `scrollend` does not bubble, so only a capturing listener on the document sees it.
   document.addEventListener("scrollend", schedule, true)
   // The usage card follows the open session while it shows.
@@ -427,6 +449,7 @@ function setup(ctx) {
 
   ctx.add(Style, () => (inbox.value.enabled ? sidebar.css : undefined))
   ctx.add(Style, () => (inbox.value.enabled ? pr.css : undefined))
+  ctx.add(Style, () => (inbox.value.enabled ? elapsed.css : undefined))
   ctx.add(Style, branch.css)
   ctx.add(Style, composer.css(options))
   ctx.add(Style, timeline.css(options.responseLabel))
@@ -536,11 +559,13 @@ function setup(ctx) {
     cancelAnimationFrame(frame)
     clearTimeout(retry)
     clearInterval(refresh)
+    clearInterval(tick)
     document.removeEventListener("scrollend", schedule, true)
     unlistenUsage()
     unlistenLinks()
     sidebar.clean()
     pr.clean()
+    elapsed.clean()
     branch.clean()
     composer.clean()
     timeline.clean()

@@ -4,9 +4,9 @@
 // A row that names no session loads the list again, at most once in this time.
 const STALE = 30 * 1000
 
-// `load` resolves to the sessions, each as `{ title, project, location }`, and `changed` runs when a load ends. Returns
-// `find(title, project)`: the location of the session that the two name. Undefined when no session fits, or when
-// sessions in more than one folder fit.
+// `load` resolves to the sessions, each as `{ id, title, project, location }`, and `changed` runs when a load ends.
+// Returns `find(title, project)`: the location of the session that the two name, and its id when only one session
+// fits. Undefined when no session fits, or when sessions in more than one folder fit.
 export function sessions(load, changed) {
   let list = []
   let time = -Infinity
@@ -29,6 +29,8 @@ export function sessions(load, changed) {
 
     if (fit.length === 0) reload()
 
-    return new Set(fit.map((session) => session.location.directory)).size === 1 ? fit[0].location : undefined
+    if (new Set(fit.map((session) => session.location.directory)).size !== 1) return
+
+    return { location: fit[0].location, id: fit.length === 1 ? fit[0].id : undefined }
   }
 }

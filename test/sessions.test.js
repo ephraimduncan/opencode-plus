@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { sessions } from "../src/sessions.js"
 
-const session = (title, project, directory) => ({ title, project, location: { directory } })
+let count = 0
+const session = (title, project, directory) => ({ id: `ses_${++count}`, title, project, location: { directory } })
 
 const LIST = [
   session("Fix the badge", "opencode-plus", "/Users/ephraim/dev/opencode-plus"),
@@ -27,9 +28,19 @@ test("finds the folder of the session that a row names, and none when two folder
   find("Fix the badge", "opencode-plus")
   await vi.runAllTimersAsync()
 
-  expect(find("Fix the badge", "opencode-plus")).toEqual({ directory: "/Users/ephraim/dev/opencode-plus" })
-  expect(find("Fix the badge", "roadmap-sync")).toEqual({ directory: "/Users/ephraim/dev/roadmap-sync" })
-  expect(find("Review", "opencode-plus")).toEqual({ directory: "/Users/ephraim/dev/opencode-plus" })
+  expect(find("Fix the badge", "opencode-plus")).toEqual({
+    id: "ses_1",
+    location: { directory: "/Users/ephraim/dev/opencode-plus" },
+  })
+  expect(find("Fix the badge", "roadmap-sync")).toEqual({
+    id: "ses_2",
+    location: { directory: "/Users/ephraim/dev/roadmap-sync" },
+  })
+  // Two sessions in one folder share the folder, but the two names do not tell which session a row shows.
+  expect(find("Review", "opencode-plus")).toEqual({
+    id: undefined,
+    location: { directory: "/Users/ephraim/dev/opencode-plus" },
+  })
   expect(find("New branch", "opencode-plus")).toBeUndefined()
 })
 

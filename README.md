@@ -20,7 +20,9 @@ To turn off all the sidebar changes of the plugin, open **Settings > General** a
 - The `+` button starts a new session in that project.
 - The "Needs attention" section stays at the top of the sidebar. Its sessions also show in groups by project.
 - A right-click on a session opens its menu. The plugin adds "New session" at the top of the menu. This item starts a new session in the project of that session, as the `+` button does.
-- Working sessions show at the top of their project. Their run time shows in blue, next to the spinner of the app.
+- Working sessions show at the top of their project. The time that a session works shows in blue, next to the spinner of the app.
+- The time shows its two largest units, for example `1m 05s`, `1h 23m`, or `1d 2h`. It starts when the work of the session starts. It continues while only the subagents of the session work, for example in a workflow, and when the session continues after them.
+- If the plugin cannot find the session of a row, the row shows the time of the app. This occurs when two sessions of a project have the same title.
 - After you open a finished session, the sidebar shows it dim. A finished session that you did not open stays bright.
 - The "Show more" button shows at the end of the list. The "Archived" button stays at the bottom of the sidebar.
 
