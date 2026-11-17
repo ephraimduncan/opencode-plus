@@ -70,8 +70,8 @@ export function archive(ctx, after) {
   // Each folder's owner of `origin`, and GitHub's last answer about the pull request of the folder's branch.
   const folders = new Map()
 
-  // When the pull request of the branch of `directory` merged or closed, or undefined. The pull request is the one that
-  // the badge in the sidebar shows. A folder on its default branch has no lookup.
+  // When the pull request of the branch of `directory` merged or closed, or undefined. A folder on its default branch
+  // has no lookup.
   const lookup = async (directory) => {
     const { current, default: base } = (await ctx.client.vcs.get({ location: { directory } })).data.branch
 

@@ -4,16 +4,29 @@
 // A row that names no session loads the list again, at most once in this time.
 const STALE = 30 * 1000
 
-// `load` resolves to the sessions, each as `{ id, title, project, location }`, and `changed` runs when a load ends.
+// `load` resolves to the sessions, each as `{ id, title, project, location }`. `changed` runs when a load ends, and
+// when a row that names no session can load the list again.
 // Returns `find(title, project)`: the location of the session that the two name, and its id when only one session
 // fits. Undefined when no session fits, or when sessions in more than one folder fit.
 export function sessions(load, changed) {
   let list = []
   let time = -Infinity
   let loading = false
+  let retry
 
   const reload = () => {
-    if (loading || Date.now() - time < STALE) return
+    if (loading) return
+    const wait = time + STALE - Date.now()
+
+    if (wait > 0) {
+      // The page can stay as it is, as when a new session gets its title and then stops. Thus, no pass follows.
+      retry ??= setTimeout(() => {
+        retry = undefined
+        changed()
+      }, wait)
+
+      return
+    }
     loading = true
     load()
       .then((value) => (list = value), () => undefined)

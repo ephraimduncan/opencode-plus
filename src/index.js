@@ -7,6 +7,7 @@ import { createComponent, createEffect, createRoot, createSignal, onCleanup } fr
 import { insert } from "solid-js/web"
 import { archive } from "./archive.js"
 import * as branch from "./branch.js"
+import * as card from "./card.js"
 import * as composer from "./composer.js"
 import * as cookies from "./cookies.js"
 import * as elapsed from "./elapsed.js"
@@ -102,17 +103,14 @@ function setup(ctx) {
 
   const run = (directory, command) => shell.run(ctx.client, directory, command)
 
-  // The pull request of `branch` in `directory`, as GitHub's `gh` command finds it. Undefined when the branch has none,
-  // or when `gh` cannot tell. A pass follows, to show what it finds.
-  const pull = async ({ directory, branch }) => {
-    try {
-      const listed = await run(directory, pr.command(branch))
-
-      return listed.ok ? pr.latest(listed.output) : undefined
-    } finally {
-      schedule()
-    }
-  }
+  // A page of the assistant messages of session `id`, the newest first. A cursor holds the order of its first page.
+  const page = (id, cursor) =>
+    ctx.client.message.list({
+      sessionID: id,
+      type: "assistant",
+      limit: 20,
+      ...(cursor ? { cursor } : { order: "desc" }),
+    })
 
   // The location of the session that a sidebar row names, among the newest root sessions, as many as the app lists.
   const where = sessions(async () => {
@@ -130,12 +128,11 @@ function setup(ctx) {
     }))
   }, () => schedule())
 
-  // The folder and branch of the session that `row` shows, as the app knows them. Undefined when it cannot tell.
-  const locate = (row) => {
-    const location = where(sidebar.title(row), sidebar.project(row))?.location
-    const branch = location && ctx.servers.get(SIDECAR)?.data.location.vcs.info(location)?.branch.current
+  // The session that `row` shows, and its folder. Undefined when it cannot tell the session.
+  const identify = (row) => {
+    const { id, location } = where(sidebar.title(row), sidebar.project(row)) ?? {}
 
-    return branch ? { directory: location.directory, branch } : undefined
+    return id ? { id, directory: location.directory } : undefined
   }
 
   // The session that `row` shows, and when its work started, as the app's data tells. Undefined when it cannot tell
@@ -326,6 +323,8 @@ function setup(ctx) {
   // Opens the pull request or issue that a link names in the side region of the session, and returns whether it did.
   const openGitHub = options.github ? github(ctx, { run, browse: visit, changed }) : () => false
 
+  const openPull = (url) => openGitHub(url) || ctx.system.openExternal(url)
+
   // Makes the plugin's changes to the sidebar while its switch is on, and takes them away once when it turns off.
   let applied = false
   const arrange = () => {
@@ -347,9 +346,11 @@ function setup(ctx) {
     sidebar.menu(newSession)
     elapsed.show(work)
     pr.show({
-      locate,
-      lookup: pull,
-      open: (url) => openGitHub(url) || ctx.system.openExternal(url),
+      identify,
+      page,
+      run,
+      changed: schedule,
+      open: openPull,
       label: ({ number, state, title }) => ctx.t("pr.label", { number, state: ctx.t(`pr.${state}`), title }),
     })
   }
@@ -442,6 +443,7 @@ function setup(ctx) {
     }),
   )
   const unlistenLinks = links.listen((url) => openGitHub(url) || browse(url))
+  const unlistenPulls = pr.listen(openPull)
 
   createKeyed(() => `${inbox.value.enabled}:${groups.value.enabled}:${working.value.inline}:${running()}`, sync)
 
@@ -451,6 +453,7 @@ function setup(ctx) {
   ctx.add(Style, () => (inbox.value.enabled ? pr.css : undefined))
   ctx.add(Style, () => (inbox.value.enabled ? elapsed.css : undefined))
   ctx.add(Style, branch.css)
+  ctx.add(Style, card.css)
   ctx.add(Style, composer.css(options))
   ctx.add(Style, timeline.css(options.responseLabel))
   ctx.add(Style, usage.css)
@@ -563,6 +566,7 @@ function setup(ctx) {
     document.removeEventListener("scrollend", schedule, true)
     unlistenUsage()
     unlistenLinks()
+    unlistenPulls()
     sidebar.clean()
     pr.clean()
     elapsed.clean()
