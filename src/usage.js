@@ -1,4 +1,5 @@
 import { lastAssistantWithUsage } from "@opencode/client/solid"
+import * as card from "./card.js"
 
 // The session header's usage button: the ring, the token count and the cost, which toggles the Context panel (OpenCode
 // Desktop 2.2.5, the app's `context` plugin). On hover it shows only a tooltip. A narrow header shows the ring alone as
@@ -7,49 +8,17 @@ const BUTTON =
   '[data-component="tooltip-v2-trigger"] > button:not([aria-haspopup]):has([data-component="progress-circle"])'
 
 const CARD = "data-plus-usage"
-const ID = "plus-usage-card"
 
-// On the root while the pointer or focus rests on the button, so the app's tooltip there does not cover the card.
-const HOVER = "data-plus-usage-hover"
-
-// Under 100ms, which reads as at once. The wait keeps a pointer that sweeps across the header from opening the card.
-const OPEN = 50
-
-// Time to cross the gap between the button and the card, so the pointer can rest on the card too.
-const CLOSE = 100
-const GAP = 4
-
-// Like Cursor's context window card, on the app's floating surface (OpenCode Desktop 2.2.5): a heading with the
-// window's use, a bar of the step's tokens by kind on the track of the app's usage meters, a legend, then the cost.
+// Like Cursor's context window card: a heading with the window's use, a bar of the step's tokens by kind on the track
+// of the app's usage meters, a legend, then the cost.
 export const css = `
-:root[${HOVER}] [data-component="tooltip-v2"]:not([data-force-open="true"]) {
-  display: none;
-}
 [${CARD}] {
-  position: fixed;
-  z-index: 1000;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 8px;
   width: 280px;
-  max-width: calc(100vw - 16px);
   padding: 12px;
-  border-radius: 8px;
-  background: var(--v2-background-bg-layer-01);
-  box-shadow: var(--v2-elevation-floating);
-  font-size: 13px;
-  font-weight: 440;
-  line-height: var(--line-height-compact);
-  letter-spacing: -0.04px;
   font-variant-numeric: tabular-nums;
-  color: var(--v2-text-text-muted);
-  -webkit-font-smoothing: antialiased;
-  transform-origin: top right;
-  animation: plus-usage-in 120ms ease-out;
-}
-[${CARD}]:dir(rtl) {
-  transform-origin: top left;
 }
 [${CARD}] [data-part="row"] {
   display: flex;
@@ -98,135 +67,20 @@ export const css = `
   border: none;
   background: var(--v2-border-border-muted);
 }
-@keyframes plus-usage-in {
-  from {
-    opacity: 0;
-    scale: 0.96;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  [${CARD}] {
-    animation: none;
-  }
-}
-:root[data-motion="reduce"] [${CARD}] {
-  animation: none;
-}
 `
 
-// Shows a card under the usage button while the pointer rests on it or it has keyboard focus, until the pointer leaves
-// both. A click or Escape closes the card until the pointer leaves the button. `fill` renders the card's content and
-// returns its cleanup. Returns the cleanup.
-export function listen(fill) {
-  // The button the pointer or focus rests on, kept after a click or Escape hides the card.
-  let anchor
-  let shown
-  let timer = 0
+// Shows a card under the usage button while the pointer rests on it, as `card.listen` does. `fill` renders the card's
+// content and returns its cleanup. Returns the cleanup.
+export const listen = (fill) =>
+  card.listen(
+    BUTTON,
+    (element) => {
+      element.setAttribute(CARD, "")
 
-  const root = document.documentElement
-  const wait = (run, ms) => {
-    clearTimeout(timer)
-    timer = setTimeout(run, ms)
-  }
-  const target = (event) => (event.target instanceof Element ? event.target.closest(BUTTON) : null)
-  const zone = (node) => node instanceof Node && !!(anchor?.contains(node) || shown?.card.contains(node))
-
-  const show = () => {
-    if (!anchor.isConnected) return
-
-    const card = document.createElement("div")
-    const theme = anchor.closest("[data-theme]")?.getAttribute("data-theme")
-
-    card.id = ID
-    card.setAttribute(CARD, "")
-    card.setAttribute("role", "tooltip")
-    // The card lives at the end of the page, outside the themed part.
-    if (theme) card.setAttribute("data-theme", theme)
-    shown = { card, stop: fill(card) }
-    document.body.append(card)
-    place(card, anchor)
-    anchor.setAttribute("aria-describedby", ID)
-  }
-
-  const hide = () => {
-    clearTimeout(timer)
-    shown?.stop()
-    shown?.card.remove()
-    shown = undefined
-    anchor?.removeAttribute("aria-describedby")
-  }
-
-  const enter = (button) => {
-    if (button === anchor) {
-      // Back from the gap or the card.
-      if (shown) clearTimeout(timer)
-      return
-    }
-
-    leave()
-    anchor = button
-    root.setAttribute(HOVER, "")
-    wait(show, OPEN)
-  }
-
-  const leave = () => {
-    hide()
-    anchor = undefined
-    root.removeAttribute(HOVER)
-  }
-
-  const over = (event) => {
-    if (event.pointerType === "touch") return
-
-    const button = target(event)
-
-    if (button) return enter(button)
-    if (shown?.card.contains(event.target)) return clearTimeout(timer)
-    // The app drew the header again under the pointer.
-    if (anchor && !anchor.isConnected) leave()
-  }
-
-  const out = (event) => {
-    if (!anchor || zone(event.relatedTarget) || !zone(event.target)) return
-    if (shown) wait(leave, CLOSE)
-    else leave()
-  }
-
-  const press = (event) => {
-    if (anchor?.contains(event.target)) hide()
-  }
-
-  const key = (event) => {
-    if (event.key === "Escape") hide()
-  }
-
-  const focus = (event) => {
-    const button = target(event)
-
-    if (button?.matches(":focus-visible")) enter(button)
-  }
-
-  const blur = (event) => {
-    if (anchor?.contains(event.target) && !zone(event.relatedTarget)) leave()
-  }
-
-  document.addEventListener("pointerover", over)
-  document.addEventListener("pointerout", out)
-  document.addEventListener("pointerdown", press, true)
-  document.addEventListener("keydown", key)
-  document.addEventListener("focusin", focus)
-  document.addEventListener("focusout", blur)
-
-  return () => {
-    document.removeEventListener("pointerover", over)
-    document.removeEventListener("pointerout", out)
-    document.removeEventListener("pointerdown", press, true)
-    document.removeEventListener("keydown", key)
-    document.removeEventListener("focusin", focus)
-    document.removeEventListener("focusout", blur)
-    leave()
-  }
-}
+      return fill(element)
+    },
+    "end",
+  )
 
 // What the usage button counts, worked out as the app does: the tokens of the step that fills the context window now,
 // their share of the model's context limit, and the session's cost. The cost is undefined where the button shows none:
@@ -351,14 +205,4 @@ const row = (children) => {
   node.append(...children)
 
   return node
-}
-
-// Under the button, its end edge in line with the button's like the app's menus, and 8px inside the window.
-const place = (card, button) => {
-  const anchor = button.getBoundingClientRect()
-  const width = card.offsetWidth
-  const start = getComputedStyle(button).direction === "rtl" ? anchor.left : anchor.right - width
-
-  card.style.top = `${anchor.bottom + GAP}px`
-  card.style.left = `${Math.max(8, Math.min(start, innerWidth - width - 8))}px`
 }

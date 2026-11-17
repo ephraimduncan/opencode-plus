@@ -28,12 +28,13 @@ To turn off all the sidebar changes of the plugin, open **Settings > General** a
 
 ### Pull request badge
 
-- If the branch of a session has a pull request on GitHub, the sidebar shows a badge after the branch icon, like T3 Code. The badge shows the number of the pull request, for example `#12`.
+- If a session made a pull request on GitHub, the sidebar shows a badge after the branch icon, like T3 Code. The badge shows the number of the pull request, for example `#12`.
 - The color and the icon of the badge show the state of the pull request: open, draft, merged, or closed.
-- If a branch has more than one pull request, the badge shows the open pull request. If no pull request is open, the badge shows the pull request with the most recent change.
-- A click on the badge opens the pull request in the GitHub panel. If you hold the pointer on the badge, the title of the pull request shows.
-- The plugin finds the pull requests with the `gh` command. The plugin does a check of each branch again after two minutes, and when a session on the branch stops its run.
-- The sidebar does not show the folder of a session. Thus, the plugin finds the session from its title and the name of its project. If sessions in two folders have the same title and project, they get no badge. A session on a different server also gets no badge.
+- If a session made more than one pull request, the badge shows the open pull request that the session made last, and the number of the other pull requests, for example `#12 +2`. If no pull request is open, the badge shows the last pull request.
+- A click on the badge opens the pull request in the GitHub panel. If you hold the pointer on the badge, the title of the pull request shows. For a badge with more than one pull request, a list of the pull requests shows. A click on a pull request in the list opens it.
+- A pull request is of a session when the agent made it with `gh pr create` in that session. Thus, sessions in the same folder or on the same branch do not get the same badge. A pull request that a subagent made gets no badge.
+- The plugin reads the state of each pull request with the `gh` command. It reads the state again after two minutes, until the pull request is merged. The plugin looks for new pull requests when the session stops its run, and every two minutes while the session works.
+- A row of the sidebar does not identify its session. Thus, the plugin finds the session from its title and the name of its project. If two sessions have the same title and project, they get no badge. A session on a different server also gets no badge.
 
 ### GitHub panel
 
@@ -58,7 +59,7 @@ To turn off all the sidebar changes of the plugin, open **Settings > General** a
 ### Automatic archive
 
 - The plugin archives a session 12 hours after its last run stops, if no new activity occurs.
-- When the pull request of the branch of a session merges or closes, the plugin archives the session. These rules are the same as the rules of auto-settle in T3 Code. The pull request is the pull request that the badge in the sidebar shows.
+- When the pull request of the branch of a session merges or closes, the plugin archives the session. These rules are the same as the rules of auto-settle in T3 Code. If the branch has more than one pull request, the plugin uses the open pull request. If no pull request is open, the plugin uses the pull request with the most recent change.
 - If you merge or close the pull request in the GitHub panel, the plugin archives the session at once. If the agent merges or closes it, the plugin archives the session when the run stops.
 - If you merge or close the pull request on GitHub, the plugin archives the session in approximately 10 seconds. The plugin asks GitHub about the pull request every 10 seconds. If nothing changed, GitHub does not count the request against your rate limit.
 - If you send a message to the session after the merge or the close, the session stays. A run that the agent starts itself, for example after a workflow, does not keep the session.
@@ -214,12 +215,12 @@ Open the command palette and type the name of a command:
 - The sidebar, the chat input, the conversation, and the context ring have no plugin API. Thus, the plugin changes the markup of the app.
 - If a new release of OpenCode changes this markup, some changes of the plugin can stop. The rest of OpenCode continues to operate.
 - The branch dropdown operates only with folders on the computer that runs OpenCode Desktop.
-- The pull request badge and the GitHub panel operate only if the `gh` command is installed and has access to GitHub. The badge shows only pull requests from the owner of the `origin` remote.
+- The pull request badge and the GitHub panel operate only if the `gh` command is installed and has access to GitHub. The badge shows only pull requests that the agent made with `gh pr create`.
 - The GitHub panel shows a maximum of 100 changed files. The "Files" tab has a link to the remaining files on GitHub.
 - The browser pane keeps only cookies. A site that keeps its login in local storage, for example some apps on Firebase, does not stay logged in after a restart.
 - Automatic archive operates only while OpenCode Desktop is open. When you open the app again, the plugin archives the due sessions in approximately one minute.
 - The archive after a merge or a close operates only if the `gh` command is installed and has access to GitHub.
-- The plugin finds the pull request from the current branch of the folder of the session. If sessions share a folder, for example the project folder, a merge archives each of these sessions that got no message from you after the merge.
+- For the archive, the plugin finds the pull request from the current branch of the folder of the session. The plugin uses only pull requests from the owner of the `origin` remote. If sessions share a folder, for example the project folder, a merge archives each of these sessions that got no message from you after the merge.
 - A session on the default branch, for example `main`, or in a removed worktree, gets no archive after a merge or a close.
 - A workflow runs in the OpenCode server. If OpenCode Desktop closes, the workflow stops.
 
