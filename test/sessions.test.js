@@ -61,5 +61,21 @@ test("loads the list again for an unknown session at most every 30 seconds", asy
   await vi.runAllTimersAsync()
 
   expect(load).toHaveBeenCalledTimes(2)
+})
+
+// Catches a new session that stays unknown for a minute: it gets its title after the list loads, and when its run then
+// stops, the page does not change, so no pass loads the list again.
+test("asks for a pass when the list can load again for an unknown session", async () => {
+  const changed = vi.fn()
+  const find = sessions(async () => LIST, changed)
+
+  find("Untitled", "opencode-plus")
+  await vi.advanceTimersByTimeAsync(10_000)
+  find("Untitled", "opencode-plus")
+  find("Untitled", "opencode-plus")
+  await vi.advanceTimersByTimeAsync(19_000)
+  expect(changed).toHaveBeenCalledTimes(1)
+
+  await vi.advanceTimersByTimeAsync(1_000)
   expect(changed).toHaveBeenCalledTimes(2)
 })
